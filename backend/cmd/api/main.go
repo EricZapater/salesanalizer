@@ -8,8 +8,8 @@ import (
 	"os"
 	"salesanalizer/backend/internal/auth"
 	"salesanalizer/backend/internal/db"
-	"salesanalizer/backend/internal/prospector"
 	"salesanalizer/backend/internal/shared"
+	"salesanalizer/backend/internal/signal"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -75,17 +75,17 @@ func main() {
 	authService := auth.NewService()
 	authHandler := auth.NewHandler(authService)
 
-	var prospectorService *prospector.Service
-	var prospectorHandler *prospector.Handler
+	var signalService *signal.Service
+	var signalHandler *signal.Handler
 	if database != nil {
-		prospectorRepo := prospector.NewRepository(database)
-		prospectorService = prospector.NewService(prospectorRepo)
-		prospectorHandler = prospector.NewHandler(prospectorService)
+		signalRepo := signal.NewRepository(database)
+		signalService = signal.NewService(signalRepo)
+		signalHandler = signal.NewHandler(signalService)
 	}
 
-	// Iniciar Scheduler de fons (03:00h cron nocturn)
-	if prospectorService != nil {
-		startNightlyCron(prospectorService)
+	// Iniciar Scheduler de fons (03:00h cron nocturn amb extractors multicanal)
+	if signalService != nil {
+		startNightlyCron(signalService)
 	}
 
 	// Configuració de Gin
@@ -111,8 +111,8 @@ func main() {
 	protectedGroup := apiGroup.Group("")
 	protectedGroup.Use(shared.AuthMiddleware())
 	{
-		if prospectorHandler != nil {
-			prospectorHandler.RegisterRoutes(protectedGroup)
+		if signalHandler != nil {
+			signalHandler.RegisterRoutes(protectedGroup)
 		}
 	}
 
@@ -123,7 +123,7 @@ func main() {
 }
 
 // startNightlyCron executa una rutina de fons que comprova l'hora per executar la cerca a les 03:00h
-func startNightlyCron(service *prospector.Service) {
+func startNightlyCron(service *signal.Service) {
 	go func() {
 		for {
 			now := time.Now()
@@ -133,12 +133,12 @@ func startNightlyCron(service *prospector.Service) {
 				next = next.Add(24 * time.Hour)
 			}
 			duration := time.Until(next)
-			log.Printf("Scheduler nocturn programat per a d'aquí: %v (%s)", duration, next.Format(time.RFC3339))
+			log.Printf("Scheduler nocturn multicanal programat per a d'aquí: %v (%s)", duration, next.Format(time.RFC3339))
 			time.Sleep(duration)
 
-			log.Println("Executant rastreig nocturn programat (03:00h)...")
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
-			result, err := service.RunScrapers(ctx)
+			log.Println("Executant rastreig nocturn multicanal (03:00h)...")
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
+			result, err := service.ProcessScrapers(ctx)
 			if err != nil {
 				log.Printf("Error al cron nocturn: %v", err)
 			} else {
