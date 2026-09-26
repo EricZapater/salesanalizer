@@ -103,14 +103,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Copy docker-compose.yml to VPS
+      - name: Copy deployment files (docker-compose & searxng) to VPS
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           port: ${{ secrets.SSH_PORT || 22 }}
-          source: "docker-compose.yml"
+          source: "docker-compose.yml,searxng/**"
           target: "~/salesanalizer"
 
       - name: Execute remote deployment commands via SSH
@@ -129,3 +129,4 @@ jobs:
             docker compose up -d --remove-orphans
             docker image prune -f
             docker compose ps
+

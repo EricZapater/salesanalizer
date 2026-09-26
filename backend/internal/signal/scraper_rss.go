@@ -146,9 +146,18 @@ func (s *RSSScraper) Fetch(ctx context.Context) ([]RawSignal, error) {
 
 	log.Printf("[RSS Scraper] Iniciant extracció de %d feeds RSS configurats...", len(s.feeds))
 
-	for _, feedConfig := range s.feeds {
+	for i, feedConfig := range s.feeds {
 		if ctx.Err() != nil {
 			return signals, ctx.Err()
+		}
+
+		// Retard de 2.5s entre feeds per respectar el rate limit de Reddit (evitar 429)
+		if i > 0 {
+			select {
+			case <-time.After(2500 * time.Millisecond):
+			case <-ctx.Done():
+				return signals, ctx.Err()
+			}
 		}
 
 		log.Printf("[RSS Scraper] Connectant a feed: %s (%s)", feedConfig.Name, feedConfig.URL)
@@ -157,6 +166,7 @@ func (s *RSSScraper) Fetch(ctx context.Context) ([]RawSignal, error) {
 			log.Printf("[RSS Scraper] ⚠️ Avis al feed %s: %v", feedConfig.Name, err)
 			continue
 		}
+
 
 		sigType := feedConfig.SignalType
 		if sigType == "" {
