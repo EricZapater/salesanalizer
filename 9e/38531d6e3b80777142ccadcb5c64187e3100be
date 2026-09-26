@@ -1,0 +1,30 @@
+backend/internal/db/db_test.go
+  h_42175f19913982 1,4-5,9-24
+backend/internal/signal/repository_test.go
+  h_42175f19913982 1,4-9,12-18,21,23,25-28,31-44,46-47,49,51-52,55-56,58-61,64-76,78-79,81-90,93-94,96-99,102-105
+backend/internal/signal/scraper_feinaactiva.go
+  h_42175f19913982 28-30,35,45,47,64
+backend/internal/signal/scraper_google.go
+  h_42175f19913982 1,11,15,17-19,22-31,34-45,50-52,54-57,59-61,64-66,69-71,73-74,76-78,81-87,89-90,94-95,97-98,101-108,111-115,118-120,123-125,127-133,138
+backend/internal/signal/scraper_rss.go
+  h_42175f19913982 13-18,20-22,25-33,38,42-44,56,61-64,67-70,72-97,99,101-102
+backend/internal/signal/scraper_test.go
+  h_42175f19913982 6,8-9,54-104
+backend/internal/signal/service.go
+  h_42175f19913982 36,40,42-43,109,309-310,387,389,394,396,399-400,402
+backend/internal/signal/service_test.go
+  h_42175f19913982 1,5-6,10-54
+frontend/src/modules/prospector/components/RadarTable.tsx
+  h_42175f19913982 42-50,52
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9e38531d6e3b80777142ccadcb5c64187e3100be",
+  "prompts": {},
+  "humans": {
+    "h_42175f19913982": {
+      "author": "Èric Zapater <ericzm@ext.inditex.com>"
+    }
+  }
+}
