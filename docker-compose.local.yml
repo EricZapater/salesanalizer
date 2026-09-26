@@ -1,0 +1,72 @@
+name: salesanalizer-local
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: salesanalizer-local-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-salesanalizer}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-salesanalizer_password}
+      POSTGRES_DB: ${DB_NAME:-salesanalizer}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - postgres_local_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks:
+      - local-net
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: salesanalizer-backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://${DB_USER:-salesanalizer}:${DB_PASSWORD:-salesanalizer_password}@db:5432/${DB_NAME:-salesanalizer}?sslmode=disable
+      PORT: 8080
+      GIN_MODE: debug
+      ADMIN_SECRET: ${ADMIN_SECRET:-sales_analizer_secret_key}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      DAILY_SIGNAL_LIMIT: ${DAILY_SIGNAL_LIMIT:-50}
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "-O", "/dev/null", "http://localhost:8080/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    networks:
+      - local-net
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: salesanalizer-local-frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "80:80"
+    networks:
+      - local-net
+
+networks:
+  local-net:
+    driver: bridge
+
+volumes:
+  postgres_local_data:
+    driver: local

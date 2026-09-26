@@ -1,0 +1,439 @@
+openapi: 3.0.3
+info:
+  title: SalesAnalizer — Prospector API
+  description: Contracte de serveis backend per al radar d'oportunitats micro-SaaS i gestió de senyals.
+  version: 1.0.0
+servers:
+  - url: http://localhost:8080/api
+    description: Servidor de desenvolupament local
+
+security:
+  - BearerAuth: []
+
+paths:
+  /auth/login:
+    post:
+      summary: Validació de la clau d'administrador
+      description: Valida el secret d'administrador configurat a ADMIN_SECRET i retorna un token de sessió o confirmació d'accés.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Accés autoritzat
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          description: Clau incorrecta o invàlida
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /offers:
+    get:
+      summary: Llistat d'ofertes i oportunitats (El Radar)
+      description: Retorna les ofertes de feina capturades i analitzades, ordenades per defecte per la viabilitat PLG descendent (5 a 1).
+      parameters:
+        - name: status
+          in: query
+          description: Filtrar per estat de l'oferta
+          required: false
+          schema:
+            type: string
+            enum: [all, active, discarded]
+            default: active
+        - name: min_score
+          in: query
+          description: Filtrar per puntuació mínima de viabilitat PLG (1-5)
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 5
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 50
+            maximum: 100
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Llistat d'ofertes obtingut correctament
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OfferListResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /offers/{id}:
+    get:
+      summary: Detall d'una oferta i anàlisi d'IA
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Detall complet de l'oferta i la seva anàlisi
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OfferDetail'
+        '404':
+          description: Oferta no trobada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+    delete:
+      summary: Descartar / arxivar una oferta (Soft Delete)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Oferta descartada correctament
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Oferta descartada correctament
+        '404':
+          description: Oferta no trobada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /offers/analyze:
+    post:
+      summary: Ingestió i anàlisi manual per URL
+      description: Descarrega el contingut d'una oferta a partir de la URL i la fa analitzar immediatament per Groq Llama 3.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnalyzeUrlRequest'
+      responses:
+        '201':
+          description: Oferta analitzada i registrada amb èxit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OfferDetail'
+        '400':
+          description: URL no vàlida o no es pot extreure el contingut
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: S'ha assolit el límit diari de 50 senyals
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /scrapers/run:
+    post:
+      summary: Execució manual sota demanda dels scrapers
+      description: Dispara immediatament el rastreig dels portals Feina Activa i Infofeina respectant el límit de 50 senyals diaris.
+      responses:
+        '200':
+          description: Execució finalitzada correctament
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  new_offers_found:
+                    type: integer
+                    example: 8
+                  analyzed_count:
+                    type: integer
+                    example: 8
+                  message:
+                    type: string
+                    example: Rastreig completat. S'han trobat i analitzat 8 noves ofertes.
+        '429':
+          description: S'ha assolit el límit diari de 50 senyals
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /system/status:
+    get:
+      summary: Estat del sistema, mètriques diàries i scrapers
+      description: Retorna el consum de senyals del dia (ex. 18/50), l'estat dels scrapers i la connexió a Groq.
+      responses:
+        '200':
+          description: Dades d'estat del sistema
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemStatusResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT / Secret Token
+
+  responses:
+    UnauthorizedError:
+      description: No autoritzat o token invàlid
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  schemas:
+    LoginRequest:
+      type: object
+      required:
+        - secret
+      properties:
+        secret:
+          type: string
+          description: Clau d'administrador
+          example: sales_analizer_secret_key
+
+    LoginResponse:
+      type: object
+      required:
+        - token
+        - message
+      properties:
+        token:
+          type: string
+          description: Token d'accés per utilitzar a les capçaleres Authorization
+          example: secret_token_ey...
+        message:
+          type: string
+          example: Login correcte
+
+    OpportunityAnalysis:
+      type: object
+      required:
+        - ineficiencia_manual
+        - proposta_micro_saas
+        - viabilitat_plg_score
+        - decisor_compra
+        - ganxo_venda
+      properties:
+        ineficiencia_manual:
+          type: string
+          example: Dedicació de 15h/setmana a quadrar torns rotatius en fulls Excel i avisar operaris per WhatsApp.
+        proposta_micro_saas:
+          type: string
+          example: QuadrantBot SaaS de generació automàtica de torns amb avís SMS/WhatsApp.
+        viabilitat_plg_score:
+          type: integer
+          minimum: 1
+          maximum: 5
+          example: 5
+        decisor_compra:
+          type: string
+          example: Cap de Planta
+        ganxo_venda:
+          type: string
+          example: He vist la vostra oferta per gestionar quadrants a Sabadell. Tenim una eina que crea els torns automàticament.
+        analyzed_at:
+          type: string
+          format: date-time
+
+    OfferSummary:
+      type: object
+      required:
+        - id
+        - source
+        - title
+        - status
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: d3b07384-d113-40a2-b91c-922659e9b015
+        source:
+          type: string
+          enum: [soc, infofeina, manual]
+          example: soc
+        title:
+          type: string
+          example: Auxiliar Administratiu/va - Quadrants de Torn
+        company:
+          type: string
+          nullable: true
+          example: Tallers Mecànics del Vallès, SL
+        location:
+          type: string
+          nullable: true
+          example: Sabadell
+        url:
+          type: string
+          format: uri
+          example: https://feinaactiva.gencat.cat/oferta/12345
+        status:
+          type: string
+          enum: [pending_analysis, analyzed, discarded]
+          example: analyzed
+        analysis:
+          $ref: '#/components/schemas/OpportunityAnalysis'
+        created_at:
+          type: string
+          format: date-time
+
+    OfferDetail:
+      allOf:
+        - $ref: '#/components/schemas/OfferSummary'
+        - type: object
+          properties:
+            raw_text:
+              type: string
+              description: Text íntegre de l'oferta de feina
+              example: Empresa del sector metall a Sabadell precisa incorporar auxiliar administratiu...
+
+    OfferListResponse:
+      type: object
+      required:
+        - total
+        - items
+      properties:
+        total:
+          type: integer
+          example: 42
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/OfferSummary'
+
+    AnalyzeUrlRequest:
+      type: object
+      required:
+        - url
+      properties:
+        url:
+          type: string
+          format: uri
+          example: https://feinaactiva.gencat.cat/oferta/67890
+
+    ScraperStatus:
+      type: object
+      required:
+        - source
+        - status
+        - items_found
+        - last_run_at
+      properties:
+        source:
+          type: string
+          example: Feina Activa (SOC)
+        status:
+          type: string
+          enum: [ok, error, idle]
+          example: ok
+        items_found:
+          type: integer
+          example: 14
+        last_run_at:
+          type: string
+          format: date-time
+          example: 2026-09-26T03:00:00Z
+        error_message:
+          type: string
+          nullable: true
+
+    SystemStatusResponse:
+      type: object
+      required:
+        - signals_today
+        - daily_limit
+        - cost_eur
+        - llm_status
+        - scrapers
+      properties:
+        signals_today:
+          type: integer
+          example: 18
+        daily_limit:
+          type: integer
+          example: 50
+        cost_eur:
+          type: number
+          format: float
+          example: 0.00
+        llm_status:
+          type: object
+          properties:
+            model:
+              type: string
+              example: llama-3.3-70b-versatile
+            provider:
+              type: string
+              example: Groq
+            connected:
+              type: boolean
+              example: true
+        scrapers:
+          type: array
+          items:
+            $ref: '#/components/schemas/ScraperStatus'
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          example: unauthorized
+        message:
+          type: string
+          example: Clau d'administrador incorrecta

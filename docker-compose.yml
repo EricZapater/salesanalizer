@@ -1,0 +1,43 @@
+services:
+  salesanalizer-backend:
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-ericzapater}/salesanalizer-backend:latest
+    container_name: salesanalizer-backend
+    restart: unless-stopped
+    env_file:
+      - .env.backend
+    environment:
+      - TZ=Europe/Madrid
+    networks:
+      - postgres-network
+      - web
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.salesanalizer-backend.rule=Host(`api.salesanalizer.ericzapater.cat`)"
+      - "traefik.http.routers.salesanalizer-backend.entrypoints=websecure"
+      - "traefik.http.routers.salesanalizer-backend.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.salesanalizer-backend.service=salesanalizer-backend"
+      - "traefik.http.services.salesanalizer-backend.loadbalancer.server.port=8080"
+      - "traefik.docker.network=web"
+
+  salesanalizer-frontend:
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-ericzapater}/salesanalizer-frontend:latest
+    container_name: salesanalizer-frontend
+    restart: unless-stopped
+    env_file:
+      - .env.frontend
+    networks:
+      - web
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.salesanalizer-frontend.rule=Host(`salesanalizer.ericzapater.cat`)"
+      - "traefik.http.routers.salesanalizer-frontend.entrypoints=websecure"
+      - "traefik.http.routers.salesanalizer-frontend.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.salesanalizer-frontend.service=salesanalizer-frontend"
+      - "traefik.http.services.salesanalizer-frontend.loadbalancer.server.port=80"
+      - "traefik.docker.network=web"
+
+networks:
+  web:
+    external: true
+  postgres-network:
+    external: true
