@@ -98,6 +98,14 @@ func (s *GoogleCustomSearchScraper) Fetch(ctx context.Context) ([]RawSignal, err
 			continue
 		}
 
+		if resp.StatusCode == http.StatusForbidden {
+			var errRes googleSearchResult
+			_ = json.NewDecoder(resp.Body).Decode(&errRes)
+			resp.Body.Close()
+			log.Println("Avis Google Search (403 Forbidden): L'API Custom Search JSON no està habilitada al projecte de Google Cloud o la clau no té permís. Ometent extractor de Google Search.")
+			break
+		}
+
 		if resp.StatusCode != http.StatusOK {
 			var errRes googleSearchResult
 			_ = json.NewDecoder(resp.Body).Decode(&errRes)

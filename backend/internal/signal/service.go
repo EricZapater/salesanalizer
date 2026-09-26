@@ -22,7 +22,47 @@ import (
 var (
 	ErrDailyLimitReached = errors.New("s'ha assolit el límit diari de 50 senyals")
 	ErrInvalidURL        = errors.New("URL no vàlida o no accessible")
+
+	activeGroqModel = "llama-3.3-70b-versatile"
+	groqModelMutex  sync.RWMutex
 )
+
+func getCandidateGroqModels() []string {
+	groqModelMutex.RLock()
+	current := activeGroqModel
+	groqModelMutex.RUnlock()
+
+	custom := os.Getenv("GROQ_MODEL")
+	models := []string{}
+	if custom != "" {
+		models = append(models, custom)
+	}
+	if current != "" && current != custom {
+		models = append(models, current)
+	}
+
+	defaults := []string{
+		"llama-3.3-70b-versatile",
+		"llama-3.1-70b-versatile",
+		"llama3-70b-8192",
+		"llama-3.1-8b-instant",
+		"llama3-8b-8192",
+		"mixtral-8x7b-32768",
+	}
+	for _, d := range defaults {
+		found := false
+		for _, m := range models {
+			if m == d {
+				found = true
+				break
+			}
+		}
+		if !found {
+			models = append(models, d)
+		}
+	}
+	return models
+}
 
 type Service struct {
 	repo       *Repository
@@ -99,12 +139,16 @@ func (s *Service) GetSystemStatus(ctx context.Context) (*SystemStatusResponse, e
 	groqKey := os.Getenv("GROQ_API_KEY")
 	connected := groqKey != ""
 
+	groqModelMutex.RLock()
+	currentModel := activeGroqModel
+	groqModelMutex.RUnlock()
+
 	return &SystemStatusResponse{
 		SignalsToday: signalsToday,
 		DailyLimit:   s.GetDailyLimit(),
 		CostEUR:      0.0,
 		LLMStatus: LLMStatus{
-			Model:     "llama-3.3-70b-versatile",
+			Model:     currentModel,
 			Provider:  "Groq (Free Tier)",
 			Connected: connected,
 		},
@@ -271,7 +315,7 @@ func (s *Service) ProcessScrapersWithProgress(ctx context.Context, onProgress fu
 			FunFact:       entertainmentPool[rand.Intn(len(entertainmentPool))].text,
 		})
 
-		// Anàlisi IA
+		// Anàlisi IA amb fallback automàtic de models
 		analysis, err := s.analyzeWithGroq(ctx, rawSig.Title, rawSig.RawText, rawSig.SignalType)
 		if err != nil {
 			log.Printf("Avis Groq: %v. Usant fallback.", err)
@@ -439,65 +483,89 @@ Retorna ÚNICAMENT un objecte JSON amb aquests camps exactes:
 }`
 
 	userPrompt := fmt.Sprintf("Tipus de senyal: %s\nTítol: %s\n\nText:\n%s", signalType, title, text)
+	candidateModels := getCandidateGroqModels()
+	var lastErr error
 
-	payload := GroqChatRequest{
-		Model: "llama-3.3-70b-versatile",
-		Messages: []GroqMessage{
-			{Role: "system", Content: systemPrompt},
-			{Role: "user", Content: userPrompt},
-		},
-		ResponseFormat: &GroqRespFormat{Type: "json_object"},
-		Temperature:    0.2,
-	}
+	for _, modelName := range candidateModels {
+		payload := GroqChatRequest{
+			Model: modelName,
+			Messages: []GroqMessage{
+				{Role: "system", Content: systemPrompt},
+				{Role: "user", Content: userPrompt},
+			},
+			ResponseFormat: &GroqRespFormat{Type: "json_object"},
+			Temperature:    0.2,
+		}
 
-	bodyBytes, err := json.Marshal(payload)
-	if err != nil {
-		return nil, err
-	}
+		bodyBytes, err := json.Marshal(payload)
+		if err != nil {
+			return nil, err
+		}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", "https://api.groq.com/openai/v1/chat/completions", bytes.NewBuffer(bodyBytes))
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+groqKey)
+		req, err := http.NewRequestWithContext(ctx, "POST", "https://api.groq.com/openai/v1/chat/completions", bytes.NewBuffer(bodyBytes))
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+groqKey)
 
-	resp, err := s.httpClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
+		resp, err := s.httpClient.Do(req)
+		if err != nil {
+			lastErr = err
+			continue
+		}
 
-	if resp.StatusCode != http.StatusOK {
 		respBody, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("groq status %d: %s", resp.StatusCode, string(respBody))
+		resp.Body.Close()
+
+		if resp.StatusCode == http.StatusNotFound {
+			lastErr = fmt.Errorf("model %s no disponible a Groq (404), provant següent", modelName)
+			log.Printf("Avis Groq: %v", lastErr)
+			continue
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			lastErr = fmt.Errorf("groq status %d (%s): %s", resp.StatusCode, modelName, string(respBody))
+			log.Printf("Avis Groq: %v", lastErr)
+			continue
+		}
+
+		var chatResp GroqChatResponse
+		if err := json.Unmarshal(respBody, &chatResp); err != nil {
+			lastErr = err
+			continue
+		}
+
+		if len(chatResp.Choices) == 0 {
+			lastErr = errors.New("resposta buida de Groq")
+			continue
+		}
+
+		rawJSON := chatResp.Choices[0].Message.Content
+		var analysis OpportunityAnalysis
+		if err := json.Unmarshal([]byte(rawJSON), &analysis); err != nil {
+			lastErr = fmt.Errorf("error parsejant JSON de Groq: %w", err)
+			continue
+		}
+
+		if analysis.ViabilitatPLGScore < 1 {
+			analysis.ViabilitatPLGScore = 1
+		} else if analysis.ViabilitatPLGScore > 5 {
+			analysis.ViabilitatPLGScore = 5
+		}
+
+		analysis.RawLLMResponse = json.RawMessage(rawJSON)
+		analysis.AnalyzedAt = time.Now()
+
+		// Record working model
+		groqModelMutex.Lock()
+		activeGroqModel = modelName
+		groqModelMutex.Unlock()
+
+		return &analysis, nil
 	}
 
-	var chatResp GroqChatResponse
-	if err := json.NewDecoder(resp.Body).Decode(&chatResp); err != nil {
-		return nil, err
-	}
-
-	if len(chatResp.Choices) == 0 {
-		return nil, errors.New("resposta buida de Groq")
-	}
-
-	rawJSON := chatResp.Choices[0].Message.Content
-	var analysis OpportunityAnalysis
-	if err := json.Unmarshal([]byte(rawJSON), &analysis); err != nil {
-		return nil, fmt.Errorf("error parsejant JSON de Groq: %w", err)
-	}
-
-	if analysis.ViabilitatPLGScore < 1 {
-		analysis.ViabilitatPLGScore = 1
-	} else if analysis.ViabilitatPLGScore > 5 {
-		analysis.ViabilitatPLGScore = 5
-	}
-
-	analysis.RawLLMResponse = json.RawMessage(rawJSON)
-	analysis.AnalyzedAt = time.Now()
-
-	return &analysis, nil
+	return nil, fmt.Errorf("no s'ha pogut obtenir resposta de cap model Groq: %w", lastErr)
 }
 
 func (s *Service) fallbackAnalysis(title, text string) *OpportunityAnalysis {
