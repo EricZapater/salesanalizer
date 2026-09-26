@@ -1,11 +1,15 @@
 package signal_test
 
 import (
+	"context"
 	"encoding/json"
+	"os"
 	"salesanalizer/backend/internal/signal"
 	"testing"
 	"time"
 )
+
+
 
 func TestSignalModel_JSONSerialization(t *testing.T) {
 	extID := "ext-123"
@@ -53,3 +57,42 @@ func TestSignalModel_JSONSerialization(t *testing.T) {
 		t.Errorf("esperava score 5, obtingut %+v", parsed.Analysis)
 	}
 }
+
+func TestService_GroqAnalysis(t *testing.T) {
+	groqKey := os.Getenv("GROQ_API_KEY")
+	if groqKey == "" {
+		t.Skip("GROQ_API_KEY no configurada a l'entorn, ometent test d'integració amb Groq")
+	}
+
+	svc := signal.NewService(nil)
+
+	// Cas 1: Negoci B2B amb dolor clar (Excel per quadrants)
+	analysisB2B, err := svc.AnalyzeSignal(context.Background(), "Responsable de torns", "Necessitem algú per gestionar quadrants de 40 operaris en torns rotatius amb fulls Excel i avisar per WhatsApp.", "oferta_feina")
+	if err != nil {
+		t.Fatalf("error a analyzeWithGroq: %v", err)
+	}
+
+	if analysisB2B == nil {
+		t.Fatalf("esperava anàlisi no nul·la")
+	}
+
+	if analysisB2B.ViabilitatPLGScore < 3 {
+		t.Errorf("esperava score >= 3 per a dolor B2B clar, obtingut: %d", analysisB2B.ViabilitatPLGScore)
+	}
+	if analysisB2B.PropostaMicroSaas == "" {
+		t.Errorf("esperava proposta micro-saas generada per IA")
+	}
+
+	// Cas 2: Notícia general / debat no B2B -> ha de ser descartat amb Score 1
+	analysisNonB2B, err := svc.AnalyzeSignal(context.Background(), "Cronos: pel·lícules en català", "Aquest cap de setmana fan 36 pel·lícules en català als cinemes de Catalunya.", "queixa_forum")
+	if err != nil {
+		t.Fatalf("error a analyzeWithGroq no-b2b: %v", err)
+	}
+
+	if analysisNonB2B.ViabilitatPLGScore > 2 {
+		t.Errorf("esperava score <= 2 per a notícia de cinema no B2B, obtingut: %d", analysisNonB2B.ViabilitatPLGScore)
+	}
+}
+
+
+

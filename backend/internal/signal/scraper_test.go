@@ -90,7 +90,38 @@ func TestRSSParser_Logic(t *testing.T) {
 	}
 }
 
+func TestRSSParser_PSCPPublicTender(t *testing.T) {
+	sampleTenderRSS := `<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Contractació Pública Generalitat</title>
+    <link>https://contractaciopublica.cat</link>
+    <item>
+      <title>Servei de desenvolupament d'aplicació per al control de presència i torns</title>
+      <link>https://contractaciopublica.cat/ca/detall-publicacio/12345</link>
+      <description>Contractació del servei de programari de gestió de torns i quadrants per al personal.</description>
+    </item>
+  </channel>
+</rss>`
+
+	fp := gofeed.NewParser()
+	feed, err := fp.Parse(strings.NewReader(sampleTenderRSS))
+	if err != nil {
+		t.Fatalf("error parsejant feed de licitacions: %v", err)
+	}
+
+	if len(feed.Items) != 1 {
+		t.Fatalf("esperava 1 licitació, obtingudes %d", len(feed.Items))
+	}
+
+	item := feed.Items[0]
+	if !strings.Contains(item.Title, "control de presència i torns") {
+		t.Errorf("títol incorrecte: %s", item.Title)
+	}
+}
+
 type roundTripFunc func(req *http.Request) *http.Response
+
 
 func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 	return f(req), nil

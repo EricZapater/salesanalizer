@@ -67,14 +67,22 @@ func NewSearXNGScraperWithConfig(baseURL string, client *http.Client, deepFetch 
 		baseURL:          baseURL,
 		deepFetchEnabled: deepFetch,
 		dorks: []string{
-			`"algun software senzill per" OR "busco programa per" "gestió de torns" OR "quadrants"`,
+			`site:upwork.com/freelance-jobs OR site:workana.com/jobs "excel" OR "macro" "inventari" OR "torns" OR "cuadrantes"`,
+			`site:es.trustpilot.com OR site:capterra.es "Factusol" OR "Sage" OR "A3" "complicat" OR "lent" "magatzem" OR "operaris"`,
+			`site:linkedin.com/posts "algú em pot recomanar un programa per" OR "estic buscant un software que"`,
+			`"software senzill" OR "busco programa" "gestió de torns" OR "quadrants"`,
 			`"estic fart de l'excel" OR "perdem molt de temps" "inventari" OR "estocs"`,
-			`intitle:"treballa amb nosaltres" "introducció de dades" "albarans" OR "comandes"`,
-			`"imprescindible domini d'excel" "control d'estoc" "magatzem"`,
-			`"és molt poc intuïtiu" OR "massa complex" "software" "gestió" "pimes"`,
+			`"introducció de dades" "albarans" OR "comandes" "empresa"`,
+			`"domini d'excel" "control d'estoc" "magatzem" catalunya`,
+			`ext:xls OR ext:xlsx "control de presència" OR "quadrant de torns"`,
+			`ext:xls OR ext:xlsx "manteniment preventiu" OR "revisió maquinària"`,
+			`ext:xls OR ext:xlsx "full de ruta" OR "albarans" "transport"`,
 		},
 	}
 }
+
+
+
 
 func (s *SearXNGScraper) Name() string {
 	return "SearXNG (Google Dorks)"

@@ -142,18 +142,10 @@ func (s *FeinaActivaScraper) Fetch(ctx context.Context) ([]RawSignal, error) {
 			kwSignalsCount++
 		})
 
-		// Si el DOM és renderitzat dinàmicament per JS i no hem trobat elements individuals, guardem la cerca d'ofertes com a senyal
-		if kwSignalsCount == 0 {
-			signals = append(signals, RawSignal{
-				SourceURL:  searchURL,
-				Title:      fmt.Sprintf("Cerca d'ofertes per: %s", kw),
-				RawText:    fmt.Sprintf("Rastreig de llocs de treball per paraula clau '%s' a la petita indústria i serveis a Catalunya (Feina Activa SOC).", kw),
-				SignalType: "oferta_feina",
-				Source:     "feina_activa",
-			})
-			log.Printf("[Feina Activa SOC] Afegit senyal de cerca global per a %q (renderitzat JS)", kw)
+		if kwSignalsCount > 0 {
+			log.Printf("[Feina Activa SOC] ✅ Trobats %d llocs de treball reals per a %q", kwSignalsCount, kw)
 		} else {
-			log.Printf("[Feina Activa SOC] ✅ Trobats %d llocs de treball per a %q", kwSignalsCount, kw)
+			log.Printf("[Feina Activa SOC] ℹ️ 0 ofertes directes per a %q (renderitzat dinàmic JS o sense vacants)", kw)
 		}
 	}
 
@@ -161,4 +153,5 @@ func (s *FeinaActivaScraper) Fetch(ctx context.Context) ([]RawSignal, error) {
 
 	return signals, nil
 }
+
 

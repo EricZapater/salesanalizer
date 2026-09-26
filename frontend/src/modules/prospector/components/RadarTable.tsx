@@ -55,8 +55,12 @@ export const RadarTable: React.FC<RadarTableProps> = ({ onSelectOffer }) => {
     if (s.includes('infofeina')) {
       return <Chip label="Infofeina" size="small" sx={{ bgcolor: '#581c87', color: '#d8b4fe', fontWeight: 600, fontSize: 11 }} />;
     }
+    if (s.includes('pscp') || s.includes('contractacio') || s.includes('licitaci') || s.includes('public_tender')) {
+      return <Chip label="Licitació (PSCP)" size="small" sx={{ bgcolor: '#0f766e', color: '#5eead4', fontWeight: 600, fontSize: 11, border: '1px solid #0d9488' }} />;
+    }
     return <Chip label={source || 'Manual'} size="small" sx={{ bgcolor: '#065f46', color: '#6ee7b7', fontWeight: 600, fontSize: 11 }} />;
   };
+
 
   const getStatusBadge = (status: string) => {
     const s = (status || 'pendent').toLowerCase();

@@ -23,7 +23,7 @@ var (
 	ErrDailyLimitReached = errors.New("s'ha assolit el límit diari de 50 senyals")
 	ErrInvalidURL        = errors.New("URL no vàlida o no accessible")
 
-	activeGroqModel = "llama-3.3-70b-versatile"
+	activeGroqModel = "openai/gpt-oss-120b"
 	groqModelMutex  sync.RWMutex
 )
 
@@ -42,12 +42,12 @@ func getCandidateGroqModels() []string {
 	}
 
 	defaults := []string{
+		"openai/gpt-oss-120b",
+		"openai/gpt-oss-20b",
+		"qwen/qwen3.8-27b",
+		"allam-2-7b",
 		"llama-3.3-70b-versatile",
-		"llama-3.1-70b-versatile",
-		"llama3-70b-8192",
 		"llama-3.1-8b-instant",
-		"llama3-8b-8192",
-		"mixtral-8x7b-32768",
 	}
 	for _, d := range defaults {
 		found := false
@@ -63,6 +63,7 @@ func getCandidateGroqModels() []string {
 	}
 	return models
 }
+
 
 type Service struct {
 	repo       *Repository
@@ -507,7 +508,12 @@ type GroqChatResponse struct {
 	} `json:"choices"`
 }
 
+func (s *Service) AnalyzeSignal(ctx context.Context, title, text, signalType string) (*OpportunityAnalysis, error) {
+	return s.analyzeWithGroq(ctx, title, text, signalType)
+}
+
 func (s *Service) analyzeWithGroq(ctx context.Context, title, text, signalType string) (*OpportunityAnalysis, error) {
+
 	groqKey := os.Getenv("GROQ_API_KEY")
 	if groqKey == "" {
 		return nil, errors.New("GROQ_API_KEY no configurada")
@@ -618,35 +624,14 @@ Retorna ÚNICAMENT un objecte JSON amb aquests camps exactes:
 }
 
 func (s *Service) fallbackAnalysis(title, text string) *OpportunityAnalysis {
-	textLower := strings.ToLower(title + " " + text)
-
-	score := 4
-	ineficiencia := "Tasca manual repetitiva gestionada amb fulls de càlcul o coordinació manual."
-	proposta := "Micro-SaaS d'automatització directa mitjançant formulari web d'un sol flux."
-	decisor := "Gerent / Responsable d'Operacions"
-	ganxo := "He vist la vostra publicació. Tenim una eina web que estandarditza aquest flux en 2 minuts des de zero."
-
-	if strings.Contains(textLower, "quadrant") || strings.Contains(textLower, "torn") {
-		score = 5
-		ineficiencia = "Planificació de quadrants de torns rotatius en fulls Excel i avisos dispersos per WhatsApp."
-		proposta = "QuadrantBot: Portal web per a generació i selecció interactiva de torns mensuals amb notificació als treballadors."
-		decisor = "Cap de Planta / Producció"
-		ganxo = "Tenim una eina web directa per configurar els quadrants dels operaris sense obrir cap Excel."
-	} else if strings.Contains(textLower, "albar") || strings.Contains(textLower, "transport") || strings.Contains(textLower, "ruta") {
-		score = 5
-		ineficiencia = "Gestió manual de fulls de ruta i albarans en paper amb re-entrada de dades a l'oficina."
-		proposta = "RutaDirect: Formulari mòbil web per a xofers per registrar entregues i signatures en temps real des de zero."
-		decisor = "Cap de Trànsit / Logística"
-		ganxo = "Voleu que els xofers introdueixin les dades d'entrega directament des del mòbil eliminant el paper a l'oficina?"
-	}
-
 	return &OpportunityAnalysis{
-		IneficienciaManual: ineficiencia,
-		PropostaMicroSaas:  proposta,
-		ViabilitatPLGScore: score,
-		DecisorCompra:      decisor,
-		GanxoVenda:         ganxo,
+		IneficienciaManual: "Pendent d'anàlisi detallada (resposta automàtica no concloent).",
+		PropostaMicroSaas:  "Revisió manual necessària de la publicació.",
+		ViabilitatPLGScore: 1,
+		DecisorCompra:      "Gerent / Responsable d'Operacions",
+		GanxoVenda:         "Contacte directe per conèixer els processos de gestió de l'empresa.",
 		RawLLMResponse:     json.RawMessage(`{"fallback": true}`),
 		AnalyzedAt:         time.Now(),
 	}
 }
+

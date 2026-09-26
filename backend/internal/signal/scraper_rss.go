@@ -40,6 +40,11 @@ func NewRSSScraper(name string, feedURLs []RSSFeedConfig) *RSSScraper {
 	if len(feedURLs) == 0 {
 		feedURLs = []RSSFeedConfig{
 			{
+				Name:       "Contractació Pública Catalunya (PSCP)",
+				URL:        "https://contractaciopublica.cat/ca/rss/licitacions",
+				SignalType: "public_tender",
+			},
+			{
 				Name:       "Reddit Catalunya (Negocis & Feina)",
 				URL:        "https://www.reddit.com/r/catalunya/search.rss?q=empresa+OR+feina+OR+gesti%C3%B3+OR+aut%C3%B2nom+OR+factura+OR+excel+OR+treball+OR+negoci&sort=new&restrict_sr=on",
 				SignalType: "queixa_forum",
@@ -89,24 +94,49 @@ func (s *RSSScraper) Name() string {
 	return s.name
 }
 
-// isBusinessRelevant filtra publicacions que no tinguin relació amb activitat laboral, comercial o gestió
-func isBusinessRelevant(title, content string) bool {
-	combined := strings.ToLower(title + " " + content)
-	keywords := []string{
-		"empresa", "pime", "pyme", "autònom", "autonomo", "gestió", "gestio", "gestoria",
-		"factura", "facturació", "albarà", "albaran", "torn", "horari", "quadrant", "excel",
-		"client", "pressupost", "presupuesto", "proveïdor", "proveedor", "estoc", "stock", "inventari",
-		"comanda", "pedido", "obra", "taller", "magatzem", "almacen", "ruta", "repartiment",
-		"transport", "furgoneta", "contracte", "contrato", "iva", "impost", "botiga", "comerç", "comercio",
-		"treballador", "empleat", "empleado", "nòmina", "nomina", "personal", "manual", "paper", "registre",
-		"crm", "erp", "software", "eina", "herramienta", "automatització", "automatizar",
+// isBusinessRelevant filtra publicacions que no tinguin relació directa amb gestió de negocis, PIMEs o software operatiu
+func isBusinessRelevant(title, content, sigType string) bool {
+	if sigType == "public_tender" {
+		return true
 	}
 
-	for _, kw := range keywords {
-		if strings.Contains(combined, kw) {
+	combined := strings.ToLower(title + " " + content)
+
+	// 1. Filtre d'exclusió de notícies generals, debats culturals, política, cinema i queixes ciutadanes
+	exclusions := []string{
+		"pel·lícula", "película", "cinema", "actor", "actriu", "cançó", "cantant", "música",
+		"futbol", "barça", "partit polític", "eleccions", "govern", "parlament", "generalitat prepara",
+		"jutjat", "presó", "policia", "mossos", "llengua catalana", "nivell c de català",
+		"migrants", "menes", "manifestació", "independentisme", "vox", "erc", "cup", "psoe", "pp",
+		"rodalies", "estudiar", "universitat", "quin grau", "turisme", "viatge",
+		"detectiu conan", "medalla d’or", "medalla d'or", "joc de paraules",
+	}
+
+	for _, ex := range exclusions {
+		if strings.Contains(combined, ex) {
+			return false
+		}
+	}
+
+	// 2. Patrons forts de necessitat de negoci, gestió de PIMEs o dolor de processos manuals
+	patterns := []*regexp.Regexp{
+		regexp.MustCompile(`(?i)\b(quadrant|quadrants)\b.*\b(torns?|empleats?|treballadors?|horari|excel)\b`),
+		regexp.MustCompile(`(?i)\b(torns?\s+rotatius?|gestió\s+de\s+torns|control\s+horari|fitxatge)\b`),
+		regexp.MustCompile(`(?i)\b(fulls?\s+d['e]\s*excel|fulls?\s+de\s+càlcul)\b.*\b(gestió|facturació|estoc|clients?|comandes?|automati)\b`),
+		regexp.MustCompile(`(?i)\b(gestoria|autònom\s+societari|pimes?|pymes?|autònom|autonomo)\b.*\b(facturació|impost|gestió|software|programa|eina|rebut)\b`),
+		regexp.MustCompile(`(?i)\b(albarans?|full\s+de\s+ruta|repartiment|magatzem)\b.*\b(clients?|paper|transport|gestió|signatura)\b`),
+		regexp.MustCompile(`(?i)\b(control\s+d['e]\s*estoc|inventari\s+de\s+material|gestió\s+d['e]\s*estocs?)\b`),
+		regexp.MustCompile(`(?i)\b(busco\s+programa|software\s+senzill|alguna\s+app|eina\s+per|quin\s+programa)\b.*\b(gestionar|factures|clients|torns|horaris|estocs)\b`),
+		regexp.MustCompile(`(?i)\b(estic\s+fart\s+de|perdem\s+molt\s+de\s+temps|procés\s+manual)\b.*\b(excel|paper|whatsapp|factures|manualment)\b`),
+		regexp.MustCompile(`(?i)\b(manteniment\s+preventiu|revisió\s+maquinària|part\s+de\s+treball)\b`),
+	}
+
+	for _, pat := range patterns {
+		if pat.MatchString(combined) {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -148,13 +178,16 @@ func (s *RSSScraper) Fetch(ctx context.Context) ([]RawSignal, error) {
 			cleanContent = strings.TrimSpace(cleanContent)
 
 			// Filtrar només publicacions rellevants per a negocis i ineficiències
-			if !isBusinessRelevant(item.Title, cleanContent) {
+			if !isBusinessRelevant(item.Title, cleanContent, sigType) {
 				continue
 			}
 
 			var authorCompany *string
 			if item.Author != nil && item.Author.Name != "" {
 				authorCompany = &item.Author.Name
+			} else if sigType == "public_tender" {
+				defaultOrg := "Organisme Públic (PSCP)"
+				authorCompany = &defaultOrg
 			}
 
 			feedMatched++
@@ -168,7 +201,7 @@ func (s *RSSScraper) Fetch(ctx context.Context) ([]RawSignal, error) {
 			})
 		}
 
-		log.Printf("[RSS Scraper] ✅ Feed %s: %d posts analitzats, %d rellevants per a negoci", feedConfig.Name, len(feed.Items), feedMatched)
+		log.Printf("[RSS Scraper] ✅ Feed %s: %d items analitzats, %d rellevants", feedConfig.Name, len(feed.Items), feedMatched)
 	}
 
 	log.Printf("[RSS Scraper] Resum final: %d senyals recollits en total", len(signals))
@@ -179,4 +212,5 @@ func (s *RSSScraper) Fetch(ctx context.Context) ([]RawSignal, error) {
 
 	return signals, nil
 }
+
 
