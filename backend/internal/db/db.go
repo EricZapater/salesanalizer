@@ -74,6 +74,9 @@ func (d *DB) RunAutoMigrations() error {
 		run_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 	);
 
+	-- Afegir columna signal_type si la taula ja existia prèviament
+	ALTER TABLE job_offers ADD COLUMN IF NOT EXISTS signal_type VARCHAR(50) DEFAULT 'oferta_feina';
+
 	-- Neteja d'enllaços no funcionals de proves inicials
 	UPDATE job_offers SET url = 'https://feinaactiva.gencat.cat' WHERE url LIKE '%feinaactiva.gencat.cat/oferta/%' AND source = 'soc';
 	UPDATE job_offers SET url = 'https://www.infofeina.com/ofertes-feina' WHERE url LIKE '%infofeina.com/oferta/%' AND source = 'infofeina';
