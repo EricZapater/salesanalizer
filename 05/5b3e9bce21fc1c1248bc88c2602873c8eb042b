@@ -1,0 +1,26 @@
+backend/internal/db/db.go
+  h_42175f19913982 77-86,101
+backend/internal/signal/handler.go
+  h_42175f19913982 35-38,41,216-247
+backend/internal/signal/model.go
+  h_42175f19913982 75-82,93
+backend/internal/signal/repository.go
+  h_42175f19913982 296-323
+backend/internal/signal/scraper_searxng.go
+  h_42175f19913982 12,14,16-17,21-25,39,41,44,46-50,66-68,70-74,83-152,156,163-165,167,169-170,216-235,241,256
+backend/internal/signal/scraper_test.go
+  h_42175f19913982 148-257
+backend/internal/signal/service.go
+  h_42175f19913982 128-146,219-226,236,256
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "055b3e9bce21fc1c1248bc88c2602873c8eb042b",
+  "prompts": {},
+  "humans": {
+    "h_42175f19913982": {
+      "author": "Èric Zapater <ericzm@ext.inditex.com>"
+    }
+  }
+}
