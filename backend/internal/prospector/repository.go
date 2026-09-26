@@ -25,7 +25,9 @@ func (r *Repository) ListOffers(ctx context.Context, status string, minScore int
 	args := []interface{}{}
 	argIdx := 1
 
-	if status != "" && status != "all" {
+	if status == "active" {
+		whereClause += " AND jo.status != 'discarded'"
+	} else if status != "" && status != "all" {
 		whereClause += fmt.Sprintf(" AND jo.status = $%d", argIdx)
 		args = append(args, status)
 		argIdx++
