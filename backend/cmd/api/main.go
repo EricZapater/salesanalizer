@@ -49,7 +49,8 @@ func main() {
 			if dbSSL == "" {
 				dbSSL = "disable"
 			}
-			dbURL = fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s", dbUser, dbPass, dbHost, dbPort, dbName, dbSSL)
+			// Utilitzem el format DSN clau-valor de Postgres per evitar problemes amb caràcters especials com '#' o '@'
+			dbURL = fmt.Sprintf("host=%s port=%s user=%s password='%s' dbname=%s sslmode=%s", dbHost, dbPort, dbUser, dbPass, dbName, dbSSL)
 		} else {
 			dbURL = "postgres://salesanalizer:salesanalizer_password@localhost:5432/salesanalizer?sslmode=disable"
 		}
