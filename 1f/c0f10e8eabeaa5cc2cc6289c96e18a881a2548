@@ -1,0 +1,26 @@
+.env.backend.example
+  h_42175f19913982 21-23
+backend/internal/signal/scraper_searxng.go
+  h_42175f19913982 8,12,16-19,22-26,28-30,33-35,38-44,46-51,54-62,64,66-70,73-83,85,90,94,97,101,107,111-112,115,119-120,124-126,130,132-134
+backend/internal/signal/scraper_test.go
+  h_42175f19913982 4,6-7,93-125,130-142,144-145
+backend/internal/signal/service.go
+  h_42175f19913982 85
+docker-compose.local.yml
+  h_42175f19913982 25-35,45-46,54
+docker-compose.yml
+  h_42175f19913982 2-12,17-18,23,27,59-60
+frontend/src/modules/prospector/components/RadarTable.tsx
+  h_42175f19913982 49-51
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1fc0f10e8eabeaa5cc2cc6289c96e18a881a2548",
+  "prompts": {},
+  "humans": {
+    "h_42175f19913982": {
+      "author": "Èric Zapater <ericzm@ext.inditex.com>"
+    }
+  }
+}
