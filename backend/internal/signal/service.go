@@ -82,7 +82,7 @@ func NewService(repo *Repository) *Service {
 	// Registre d'extractors per defecte aplicant el patró Strategy
 	svc.RegisterScraper(NewFeinaActivaScraper(nil))
 	svc.RegisterScraper(NewRSSScraper("Fòrums Gestió & PIMEs (RSS)", nil))
-	svc.RegisterScraper(NewGoogleSearchScraper())
+	svc.RegisterScraper(NewSearXNGScraper())
 
 	return svc
 }

@@ -46,6 +46,9 @@ export const RadarTable: React.FC<RadarTableProps> = ({ onSelectOffer }) => {
     if (s.includes('reddit')) {
       return <Chip label="Reddit" size="small" sx={{ bgcolor: '#7c2d12', color: '#fdba74', fontWeight: 600, fontSize: 11 }} />;
     }
+    if (s.includes('searxng') || s.includes('dork')) {
+      return <Chip label="SearXNG Dork" size="small" sx={{ bgcolor: '#0f2942', color: '#38bdf8', fontWeight: 600, fontSize: 11, border: '1px solid #0284c7' }} />;
+    }
     if (s.includes('google')) {
       return <Chip label="Google Dork" size="small" sx={{ bgcolor: '#1e293b', color: '#38bdf8', fontWeight: 600, fontSize: 11, border: '1px solid #0284c7' }} />;
     }

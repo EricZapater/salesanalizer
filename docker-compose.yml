@@ -1,15 +1,30 @@
 services:
+  searxng:
+    image: searxng/searxng:latest
+    container_name: salesanalizer-searxng
+    restart: unless-stopped
+    environment:
+      - SEARXNG_SECRET=salesanalizer_searxng_secret_32bytes_key!
+      - SEARXNG_URL_FORMAT=json
+      - SEARXNG_BASE_URL=http://searxng:8080/
+    networks:
+      - internal-net
+
   salesanalizer-backend:
     image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-ericzapater}/salesanalizer-backend:latest
     container_name: salesanalizer-backend
     restart: unless-stopped
+    depends_on:
+      - searxng
     env_file:
       - .env.backend
     environment:
       - TZ=Europe/Madrid
+      - SEARXNG_URL=http://searxng:8080
     networks:
       - postgres-network
       - web
+      - internal-net
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.salesanalizer-backend.rule=Host(`api.salesanalizer.ericzapater.cat`)"
@@ -41,3 +56,5 @@ networks:
     external: true
   postgres-network:
     external: true
+  internal-net:
+    driver: bridge

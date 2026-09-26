@@ -1,7 +1,10 @@
 package signal_test
 
 import (
+	"bytes"
 	"context"
+	"io"
+	"net/http"
 	"salesanalizer/backend/internal/signal"
 	"strings"
 	"testing"
@@ -87,18 +90,58 @@ func TestRSSParser_Logic(t *testing.T) {
 	}
 }
 
-func TestGoogleSearchScraper_Initialization(t *testing.T) {
-	scraper := signal.NewGoogleSearchScraper()
-	if scraper.Name() != "Google Custom Search (Dorks)" {
-		t.Errorf("nom esperat 'Google Custom Search (Dorks)', obtingut: %s", scraper.Name())
+type roundTripFunc func(req *http.Request) *http.Response
+
+func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req), nil
+}
+
+func TestSearXNGScraper_FetchWithMockTransport(t *testing.T) {
+	mockJSON := `{
+		"query": "ext:xls control de presencia",
+		"number_of_results": 1,
+		"results": [
+			{
+				"url": "https://example.cat/plantilla-torns.xls",
+				"title": "Plantilla Excel de control horari i torns per a operaris",
+				"content": "Full de càlcul per al registre diari de presència i quadrants de torns rotatius a fàbrica.",
+				"engine": "google"
+			}
+		]
+	}`
+
+	mockClient := &http.Client{
+		Transport: roundTripFunc(func(req *http.Request) *http.Response {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     make(http.Header),
+				Body:       io.NopCloser(bytes.NewBufferString(mockJSON)),
+			}
+		}),
 	}
 
-	// Without API keys, Fetch should return nil gracefully without error
+	scraper := signal.NewSearXNGScraperWithClient("http://searxng.internal", mockClient)
+	if scraper.Name() != "SearXNG (Google Dorks)" {
+		t.Errorf("nom esperat 'SearXNG (Google Dorks)', obtingut: %s", scraper.Name())
+	}
+
 	signals, err := scraper.Fetch(context.Background())
 	if err != nil {
-		t.Errorf("Fetch sense claus no hauria de fallar: %v", err)
+		t.Fatalf("Fetch a SearXNG ha fallat: %v", err)
 	}
-	if len(signals) != 0 {
-		t.Errorf("esperava 0 senyals sense claus d'API, obtinguts %d", len(signals))
+
+	if len(signals) == 0 {
+		t.Fatalf("esperava com a mínim 1 senyal, obtinguts 0")
+	}
+
+	first := signals[0]
+	if first.SignalType != "searxng_dork" {
+		t.Errorf("signal_type esperat 'searxng_dork', obtingut '%s'", first.SignalType)
+	}
+	if first.Source != "searxng" {
+		t.Errorf("source esperada 'searxng', obtingut '%s'", first.Source)
+	}
+	if first.SourceURL != "https://example.cat/plantilla-torns.xls" {
+		t.Errorf("URL incorrecta: %s", first.SourceURL)
 	}
 }
