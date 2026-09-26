@@ -95,6 +95,9 @@ func (s *SearXNGScraper) Fetch(ctx context.Context) ([]RawSignal, error) {
 			continue
 		}
 		req.Header.Set("User-Agent", "SalesAnalizer-Bot/1.0")
+		req.Header.Set("X-Forwarded-For", "127.0.0.1")
+		req.Header.Set("X-Real-IP", "127.0.0.1")
+		req.Header.Set("Accept", "application/json")
 
 		resp, err := s.client.Do(req)
 		if err != nil {

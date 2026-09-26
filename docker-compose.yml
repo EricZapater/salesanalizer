@@ -7,6 +7,8 @@ services:
       - SEARXNG_SECRET=salesanalizer_searxng_secret_32bytes_key!
       - SEARXNG_URL_FORMAT=json
       - SEARXNG_BASE_URL=http://searxng:8080/
+    volumes:
+      - ./searxng:/etc/searxng
     networks:
       - internal-net
 
