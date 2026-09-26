@@ -7,6 +7,7 @@ RUN apk add --no-cache ca-certificates tzdata git
 WORKDIR /app
 
 # Download dependencies first for layer caching
+ENV GOPROXY=https://proxy.golang.org,direct
 COPY go.mod go.sum ./
 RUN go mod download
 
