@@ -1,0 +1,18 @@
+backend/internal/db/db.go
+  h_42175f19913982 77-79
+backend/migrations/000002_add_signal_type_column.down.sql
+  h_42175f19913982 1-2
+backend/migrations/000002_add_signal_type_column.up.sql
+  h_42175f19913982 1-2
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "effc9b86d82f9124e4f1998556f3e34ac0413fa5",
+  "prompts": {},
+  "humans": {
+    "h_42175f19913982": {
+      "author": "Èric Zapater <ericzm@ext.inditex.com>"
+    }
+  }
+}
