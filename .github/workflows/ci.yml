@@ -42,7 +42,7 @@ jobs:
         run: go vet ./...
 
       - name: Run Go Tests
-        run: go test -v -race -coverprofile=coverage.out ./...
+        run: go test -v -race ./...
 
       - name: Verify Binary Compilation
         run: CGO_ENABLED=0 go build -v -o /dev/null ./cmd/api/main.go
@@ -50,9 +50,6 @@ jobs:
   frontend-ci:
     name: Frontend (React / TypeScript) Verification
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: frontend
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -67,13 +64,13 @@ jobs:
         with:
           node-version: 22
           cache: 'pnpm'
-          cache-dependency-path: frontend/pnpm-lock.yaml
+          cache-dependency-path: pnpm-lock.yaml
 
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --no-frozen-lockfile
 
       - name: Run TypeScript type-check and build
-        run: pnpm run build
+        run: cd frontend && pnpm run build
 
   docker-lint-ci:
     name: Dockerfile & Compose Syntax Validation

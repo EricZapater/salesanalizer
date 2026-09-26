@@ -1,5 +1,5 @@
 # Stage 1: Build binary
-FROM golang:1.26-alpine AS builder
+FROM golang:1.22-alpine AS builder
 
 # Install build dependencies (certificates, git, tzdata)
 RUN apk add --no-cache ca-certificates tzdata git
