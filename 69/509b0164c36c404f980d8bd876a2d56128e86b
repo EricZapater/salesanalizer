@@ -1,0 +1,22 @@
+backend/internal/signal/scraper_feinaactiva.go
+  h_42175f19913982 6,46,48,60-61,74,78,86,93,97,142,145-146,154-156,160-161,164
+backend/internal/signal/scraper_rss.go
+  h_42175f19913982 5,20-31,44,49,62-66,70-75,78-80,96-102,117-118,124,127,136,160,170-171,174-175,182
+backend/internal/signal/scraper_searxng.go
+  h_42175f19913982 58-63,75,83-84,87-89,95,99,102,109,115,123,127,145,147-148,151-152,155
+backend/internal/signal/service.go
+  h_42175f19913982 208-210,219,245,257,282,290-291,295,301,313,317-318,331,335-337,339-341,353-354
+searxng/settings.yml
+  h_42175f19913982 25-47
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "69509b0164c36c404f980d8bd876a2d56128e86b",
+  "prompts": {},
+  "humans": {
+    "h_42175f19913982": {
+      "author": "Èric Zapater <ericzm@ext.inditex.com>"
+    }
+  }
+}
