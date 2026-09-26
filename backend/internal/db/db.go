@@ -73,6 +73,10 @@ func (d *DB) RunAutoMigrations() error {
 		error_message TEXT,
 		run_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 	);
+
+	-- Neteja d'enllaços no funcionals de proves inicials
+	UPDATE job_offers SET url = 'https://feinaactiva.gencat.cat' WHERE url LIKE '%feinaactiva.gencat.cat/oferta/%' AND source = 'soc';
+	UPDATE job_offers SET url = 'https://www.infofeina.com/ofertes-feina' WHERE url LIKE '%infofeina.com/oferta/%' AND source = 'infofeina';
 	`
 	_, err := d.Exec(schema)
 	if err != nil {
