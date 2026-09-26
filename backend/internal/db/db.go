@@ -74,6 +74,16 @@ func (d *DB) RunAutoMigrations() error {
 		run_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 	);
 
+	CREATE TABLE IF NOT EXISTS signal_settings (
+		id INT PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+		deep_fetch_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+		updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+	);
+
+	INSERT INTO signal_settings (id, deep_fetch_enabled, updated_at)
+	VALUES (1, FALSE, NOW())
+	ON CONFLICT (id) DO NOTHING;
+
 	-- Afegir columna signal_type si la taula ja existia prèviament
 	ALTER TABLE job_offers ADD COLUMN IF NOT EXISTS signal_type VARCHAR(50) DEFAULT 'oferta_feina';
 
@@ -88,3 +98,4 @@ func (d *DB) RunAutoMigrations() error {
 	log.Println("Database schema migrations verified")
 	return nil
 }
+

@@ -145,3 +145,113 @@ func TestSearXNGScraper_FetchWithMockTransport(t *testing.T) {
 		t.Errorf("URL incorrecta: %s", first.SourceURL)
 	}
 }
+
+func TestSearXNGScraper_DeepFetchWithMockHTML(t *testing.T) {
+	mockJSON := `{
+		"query": "busco programa per gestio de torns",
+		"number_of_results": 1,
+		"results": [
+			{
+				"url": "https://example.cat/debat-torns",
+				"title": "Debat sobre programari de torns",
+				"content": "Snippet resum curt",
+				"engine": "google"
+			}
+		]
+	}`
+
+	mockHTML := `<!DOCTYPE html>
+	<html>
+	<head><title>Debat sobre torns</title></head>
+	<body>
+		<header><nav>Menu</nav></header>
+		<article>
+			<p>A la nostra empresa tenim 40 treballadors i estem farts de fer quadrants en fulls Excel cada setmana. Busquem un programa senzill de gestió de torns.</p>
+		</article>
+		<footer>Footer info</footer>
+	</body>
+	</html>`
+
+	mockClient := &http.Client{
+		Transport: roundTripFunc(func(req *http.Request) *http.Response {
+			if strings.Contains(req.URL.String(), "/search") {
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Header:     make(http.Header),
+					Body:       io.NopCloser(bytes.NewBufferString(mockJSON)),
+				}
+			}
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     make(http.Header),
+				Body:       io.NopCloser(bytes.NewBufferString(mockHTML)),
+			}
+		}),
+	}
+
+	scraper := signal.NewSearXNGScraperWithConfig("http://searxng.internal", mockClient, true)
+	if !scraper.IsDeepFetch() {
+		t.Errorf("esperava deepFetchEnabled == true")
+	}
+
+	signals, err := scraper.Fetch(context.Background())
+	if err != nil {
+		t.Fatalf("Fetch ha fallat: %v", err)
+	}
+	if len(signals) == 0 {
+		t.Fatalf("esperava com a mínim 1 senyal")
+	}
+
+	first := signals[0]
+	if !strings.Contains(first.RawText, "quadrants en fulls Excel") {
+		t.Errorf("esperava que el text obtingut per DeepFetch contingués el cos de l'article, obtingut: %s", first.RawText)
+	}
+}
+
+func TestSearXNGScraper_DeepFetchFallbackOn403(t *testing.T) {
+	mockJSON := `{
+		"query": "busco programa per gestio de torns",
+		"number_of_results": 1,
+		"results": [
+			{
+				"url": "https://blocked-example.cat/private",
+				"title": "Títol privat",
+				"content": "Snippet salvavides de SearXNG",
+				"engine": "google"
+			}
+		]
+	}`
+
+	mockClient := &http.Client{
+		Transport: roundTripFunc(func(req *http.Request) *http.Response {
+			if strings.Contains(req.URL.String(), "/search") {
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Header:     make(http.Header),
+					Body:       io.NopCloser(bytes.NewBufferString(mockJSON)),
+				}
+			}
+			// Simulem bloqueig 403 o error en la navegació profunda
+			return &http.Response{
+				StatusCode: http.StatusForbidden,
+				Header:     make(http.Header),
+				Body:       io.NopCloser(bytes.NewBufferString("Forbidden")),
+			}
+		}),
+	}
+
+	scraper := signal.NewSearXNGScraperWithConfig("http://searxng.internal", mockClient, true)
+	signals, err := scraper.Fetch(context.Background())
+	if err != nil {
+		t.Fatalf("Fetch ha fallat: %v", err)
+	}
+	if len(signals) == 0 {
+		t.Fatalf("esperava com a mínim 1 senyal")
+	}
+
+	first := signals[0]
+	if first.RawText != "Snippet salvavides de SearXNG" {
+		t.Errorf("esperava fallback al snippet de SearXNG, obtingut: %s", first.RawText)
+	}
+}
+

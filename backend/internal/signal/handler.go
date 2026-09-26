@@ -32,7 +32,12 @@ func (h *Handler) RegisterRoutes(rg *gin.RouterGroup) {
 	rg.POST("/scrapers/run", h.RunScrapers)
 	rg.GET("/scrapers/stream", h.StreamScrapers)
 	rg.GET("/system/status", h.GetSystemStatus)
+	rg.GET("/signals/settings", h.GetScraperSettings)
+	rg.PUT("/signals/settings", h.UpdateScraperSettings)
+	rg.GET("/settings", h.GetScraperSettings)
+	rg.PUT("/settings", h.UpdateScraperSettings)
 }
+
 
 func (h *Handler) ListSignals(c *gin.Context) {
 	status := c.DefaultQuery("status", "active")
@@ -208,3 +213,35 @@ func (h *Handler) GetSystemStatus(c *gin.Context) {
 
 	c.JSON(http.StatusOK, status)
 }
+
+func (h *Handler) GetScraperSettings(c *gin.Context) {
+	deepFetch, err := h.service.GetScraperSettings(c.Request.Context())
+	if err != nil {
+		shared.RespondError(c, http.StatusInternalServerError, "database_error", err.Error())
+		return
+	}
+
+	c.JSON(http.StatusOK, ScraperSettingsResponse{
+		DeepFetchEnabled: deepFetch,
+	})
+}
+
+func (h *Handler) UpdateScraperSettings(c *gin.Context) {
+	var req UpdateScraperSettingsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		shared.RespondError(c, http.StatusBadRequest, "invalid_payload", "Format invàlid per a la configuració")
+		return
+	}
+
+	if err := h.service.UpdateScraperSettings(c.Request.Context(), req.DeepFetchEnabled); err != nil {
+		shared.RespondError(c, http.StatusInternalServerError, "database_error", err.Error())
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success":            true,
+		"message":            "Configuració d'extracció actualitzada correctament",
+		"deep_fetch_enabled": req.DeepFetchEnabled,
+	})
+}
+

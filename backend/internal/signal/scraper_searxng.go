@@ -9,14 +9,20 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"regexp"
 	"strings"
+	"sync"
 	"time"
+
+	"github.com/PuerkitoBio/goquery"
 )
 
 type SearXNGScraper struct {
-	client  *http.Client
-	baseURL string
-	dorks   []string
+	client           *http.Client
+	baseURL          string
+	dorks            []string
+	deepFetchEnabled bool
+	mu               sync.RWMutex
 }
 
 type searxngResponse struct {
@@ -30,13 +36,18 @@ type searxngResponse struct {
 	} `json:"results"`
 }
 
-// NewSearXNGScraper crea un extractor que fa consultes de Google Dorks a una instància interna de SearXNG
+// NewSearXNGScraper crea un extractor que fa consultes de dorks d'intenció a SearXNG
 func NewSearXNGScraper() *SearXNGScraper {
-	return NewSearXNGScraperWithClient("", nil)
+	return NewSearXNGScraperWithConfig("", nil, false)
 }
 
-// NewSearXNGScraperWithClient permet injectar client HTTP i URL personalitzada (útil per a tests i configuració)
+// NewSearXNGScraperWithClient permet injectar client HTTP i URL personalitzada
 func NewSearXNGScraperWithClient(baseURL string, client *http.Client) *SearXNGScraper {
+	return NewSearXNGScraperWithConfig(baseURL, client, false)
+}
+
+// NewSearXNGScraperWithConfig permet configurar baseURL, client HTTP i mode deep fetch
+func NewSearXNGScraperWithConfig(baseURL string, client *http.Client, deepFetch bool) *SearXNGScraper {
 	if baseURL == "" {
 		baseURL = os.Getenv("SEARXNG_URL")
 		if baseURL == "" {
@@ -52,15 +63,15 @@ func NewSearXNGScraperWithClient(baseURL string, client *http.Client) *SearXNGSc
 	}
 
 	return &SearXNGScraper{
-		client:  client,
-		baseURL: baseURL,
+		client:           client,
+		baseURL:          baseURL,
+		deepFetchEnabled: deepFetch,
 		dorks: []string{
-			`ext:xls OR ext:xlsx "control de presència" OR "quadrant de torns" OR "control horari"`,
-			`ext:xls OR ext:xlsx "manteniment preventiu" OR "revisió maquinària" OR "part de treball"`,
-			`ext:xls OR ext:xlsx "control d'estoc" OR "inventari de material" OR "fitxa de magatzem"`,
-			`ext:xls OR ext:xlsx "full de ruta" OR "albarans pendents" OR "repartiment transport"`,
-			`filetype:pdf OR filetype:xls "sol·licitud de vacances" OR "petició dies d'assumptes propis" "empresa"`,
-			`filetype:xls "comunicat d'incidències" OR "part d'avaries" "taller"`,
+			`"algun software senzill per" OR "busco programa per" "gestió de torns" OR "quadrants"`,
+			`"estic fart de l'excel" OR "perdem molt de temps" "inventari" OR "estocs"`,
+			`intitle:"treballa amb nosaltres" "introducció de dades" "albarans" OR "comandes"`,
+			`"imprescindible domini d'excel" "control d'estoc" "magatzem"`,
+			`"és molt poc intuïtiu" OR "massa complex" "software" "gestió" "pimes"`,
 		},
 	}
 }
@@ -69,22 +80,94 @@ func (s *SearXNGScraper) Name() string {
 	return "SearXNG (Google Dorks)"
 }
 
+func (s *SearXNGScraper) SetDeepFetch(enabled bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.deepFetchEnabled = enabled
+}
+
+func (s *SearXNGScraper) IsDeepFetch() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.deepFetchEnabled
+}
+
+// randomDelay aplica un retard aleatori d'entre 3 i 7 segons entre peticions de navegació web profunda
+func (s *SearXNGScraper) randomDelay(ctx context.Context) error {
+	delaySec := 3 + rand.Intn(5) // 3..7 segons
+	select {
+	case <-time.After(time.Duration(delaySec) * time.Second):
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (s *SearXNGScraper) fetchDeepContent(ctx context.Context, targetURL string) (string, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", targetURL, nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
+	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+	req.Header.Set("Accept-Language", "ca,es;q=0.9,en;q=0.8")
+
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("status %d", resp.StatusCode)
+	}
+
+	doc, err := goquery.NewDocumentFromReader(resp.Body)
+	if err != nil {
+		return "", err
+	}
+
+	// Netejar tags de codi i components auxiliars
+	doc.Find("script, style, noscript, svg, nav, footer, header, iframe").Each(func(_ int, sel *goquery.Selection) {
+		sel.Remove()
+	})
+
+	bodyText := doc.Find("body").Text()
+	if bodyText == "" {
+		bodyText = doc.Text()
+	}
+
+	spaceRegex := regexp.MustCompile(`\s+`)
+	cleaned := strings.TrimSpace(spaceRegex.ReplaceAllString(bodyText, " "))
+	if len(cleaned) < 30 {
+		return "", fmt.Errorf("contingut extret massa curt")
+	}
+
+	if len(cleaned) > 3500 {
+		cleaned = cleaned[:3500] + "..."
+	}
+
+	return cleaned, nil
+}
+
 func (s *SearXNGScraper) Fetch(ctx context.Context) ([]RawSignal, error) {
 	var signals []RawSignal
 
-	// Escollim 3 dorks aleatoris a cada execució per rotar i optimitzar
+	// Escollim 2 o 3 dorks d'intenció a l'atzar
 	dorkPool := make([]string, len(s.dorks))
 	copy(dorkPool, s.dorks)
 	rand.Shuffle(len(dorkPool), func(i, j int) {
 		dorkPool[i], dorkPool[j] = dorkPool[j], dorkPool[i]
 	})
 
-	selectedDorks := dorkPool
-	if len(selectedDorks) > 3 {
-		selectedDorks = selectedDorks[:3]
+	numDorks := 2 + rand.Intn(2) // 2..3 dorks
+	if numDorks > len(dorkPool) {
+		numDorks = len(dorkPool)
 	}
+	selectedDorks := dorkPool[:numDorks]
 
-	log.Printf("[SearXNG Scraper] Executant %d Dorks seleccionats a la instància %s...", len(selectedDorks), s.baseURL)
+	deepMode := s.IsDeepFetch()
+	log.Printf("[SearXNG Scraper] Executant %d Dorks d'intenció a %s (Deep Fetch: %t)...", len(selectedDorks), s.baseURL, deepMode)
 
 	for i, dork := range selectedDorks {
 		if ctx.Err() != nil {
@@ -130,15 +213,32 @@ func (s *SearXNGScraper) Fetch(ctx context.Context) ([]RawSignal, error) {
 				continue
 			}
 
-			content := strings.TrimSpace(item.Content)
-			if content == "" {
-				content = item.Title
+			// Opció A: Utilitzar snippet directe com a RawText
+			rawText := strings.TrimSpace(item.Content)
+			if rawText == "" {
+				rawText = item.Title
+			}
+
+			// Opció B: Deep Fetch (navegació web profunda amb goquery)
+			if deepMode {
+				_ = s.randomDelay(ctx)
+				if ctx.Err() != nil {
+					return signals, ctx.Err()
+				}
+				deepText, err := s.fetchDeepContent(ctx, item.URL)
+				if err == nil && deepText != "" {
+					rawText = deepText
+					log.Printf("[SearXNG DeepFetch] ✅ Extret text complet (%d caràcters) per a %s", len(rawText), item.URL)
+				} else {
+					// Fallback silenciós al snippet del JSON
+					log.Printf("[SearXNG DeepFetch] ℹ️ Fallback a snippet per a %s (motiu: %v)", item.URL, err)
+				}
 			}
 
 			signals = append(signals, RawSignal{
 				SourceURL:  item.URL,
 				Title:      item.Title,
-				RawText:    content,
+				RawText:    rawText,
 				SignalType: "searxng_dork",
 				Source:     "searxng",
 			})
@@ -152,4 +252,5 @@ func (s *SearXNGScraper) Fetch(ctx context.Context) ([]RawSignal, error) {
 
 	return signals, nil
 }
+
 

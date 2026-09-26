@@ -293,3 +293,31 @@ func (r *Repository) GetLatestScraperRuns(ctx context.Context) ([]ScraperRun, er
 
 	return runs, nil
 }
+
+func (r *Repository) GetScraperSettings(ctx context.Context) (bool, error) {
+	query := `SELECT deep_fetch_enabled FROM signal_settings WHERE id = 1`
+	var deepFetch bool
+	err := r.db.QueryRowContext(ctx, query).Scan(&deepFetch)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			_ = r.UpdateScraperSettings(ctx, false)
+			return false, nil
+		}
+		return false, fmt.Errorf("error obtenint signal_settings: %w", err)
+	}
+	return deepFetch, nil
+}
+
+func (r *Repository) UpdateScraperSettings(ctx context.Context, deepFetch bool) error {
+	query := `
+		INSERT INTO signal_settings (id, deep_fetch_enabled, updated_at)
+		VALUES (1, $1, NOW())
+		ON CONFLICT (id) DO UPDATE SET deep_fetch_enabled = EXCLUDED.deep_fetch_enabled, updated_at = NOW()
+	`
+	_, err := r.db.ExecContext(ctx, query, deepFetch)
+	if err != nil {
+		return fmt.Errorf("error actualitzant signal_settings: %w", err)
+	}
+	return nil
+}
+

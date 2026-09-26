@@ -125,6 +125,25 @@ func (s *Service) UpdateSignalStatus(ctx context.Context, id, status string) err
 	return s.repo.UpdateSignalStatus(ctx, id, status)
 }
 
+func (s *Service) GetScraperSettings(ctx context.Context) (bool, error) {
+	if s.repo == nil {
+		return false, nil
+	}
+	return s.repo.GetScraperSettings(ctx)
+}
+
+func (s *Service) UpdateScraperSettings(ctx context.Context, deepFetch bool) error {
+	for _, sc := range s.scrapers {
+		if searx, ok := sc.(*SearXNGScraper); ok {
+			searx.SetDeepFetch(deepFetch)
+		}
+	}
+	if s.repo == nil {
+		return nil
+	}
+	return s.repo.UpdateScraperSettings(ctx, deepFetch)
+}
+
 func (s *Service) GetSystemStatus(ctx context.Context) (*SystemStatusResponse, error) {
 	signalsToday, err := s.repo.CountSignalsToday(ctx)
 	if err != nil {
@@ -197,6 +216,14 @@ func (s *Service) ProcessScrapersWithProgress(ctx context.Context, onProgress fu
 		return nil, ErrDailyLimitReached
 	}
 
+	// Carregar i sincronitzar paràmetre Deep Fetch
+	deepFetch, _ := s.GetScraperSettings(ctx)
+	for _, sc := range s.scrapers {
+		if searx, ok := sc.(*SearXNGScraper); ok {
+			searx.SetDeepFetch(deepFetch)
+		}
+	}
+
 	emit(ProgressEvent{
 		Type:          "start",
 		Message:       "🚀 Llançant tots els extractors multicanal en paral·lel...",
@@ -206,7 +233,7 @@ func (s *Service) ProcessScrapersWithProgress(ctx context.Context, onProgress fu
 	})
 
 	log.Printf("[Pipeline] === INICI D'EXECUCIÓ DE SCRAPERS ===")
-	log.Printf("[Pipeline] Extractors registrats: %d | Límit diari: %d (avui portem %d)", len(s.scrapers), dailyLimit, signalsToday)
+	log.Printf("[Pipeline] Extractors registrats: %d | Deep Fetch: %t | Límit diari: %d (avui portem %d)", len(s.scrapers), deepFetch, dailyLimit, signalsToday)
 
 	// 1. Execució PARAL·LELA de tots els scrapers registrats
 	resChan := make(chan scraperResult, len(s.scrapers))
@@ -225,6 +252,7 @@ func (s *Service) ProcessScrapersWithProgress(ctx context.Context, onProgress fu
 			}
 		}(sc)
 	}
+
 
 	// Tancar canal quan tots els scrapers acabin
 	go func() {

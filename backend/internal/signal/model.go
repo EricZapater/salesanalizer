@@ -72,6 +72,14 @@ type UpdateStatusRequest struct {
 	Status string `json:"status" binding:"required"`
 }
 
+type ScraperSettingsResponse struct {
+	DeepFetchEnabled bool `json:"deep_fetch_enabled"`
+}
+
+type UpdateScraperSettingsRequest struct {
+	DeepFetchEnabled bool `json:"deep_fetch_enabled"`
+}
+
 type ProgressEvent struct {
 	Type          string            `json:"type"` // "start", "progress", "fun_fact", "joke", "analyzing", "completed", "error"
 	Step          string            `json:"step,omitempty"`
@@ -82,3 +90,4 @@ type ProgressEvent struct {
 	Result        *ScraperRunResult `json:"result,omitempty"`
 	EstimatedSecs int               `json:"estimated_secs,omitempty"`
 }
+
