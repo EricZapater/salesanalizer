@@ -1,0 +1,18 @@
+.github/workflows/ci.yml
+  h_42175f19913982 36,42
+backend/Dockerfile
+  h_42175f19913982 10
+backend/go.mod
+  h_42175f19913982 3,8,11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4c85eec76610847dcff448a645c5820450734723",
+  "prompts": {},
+  "humans": {
+    "h_42175f19913982": {
+      "author": "Èric Zapater <ericzm@ext.inditex.com>"
+    }
+  }
+}
