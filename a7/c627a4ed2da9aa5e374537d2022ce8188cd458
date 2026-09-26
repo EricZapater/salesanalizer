@@ -1,0 +1,20 @@
+.github/workflows/ci.yml
+  h_42175f19913982 45,67,70,73
+backend/Dockerfile
+  h_42175f19913982 2
+backend/go.mod
+  h_42175f19913982 3
+frontend/pnpm-lock.yaml
+  h_42175f19913982 1-2015
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a7c627a4ed2da9aa5e374537d2022ce8188cd458",
+  "prompts": {},
+  "humans": {
+    "h_42175f19913982": {
+      "author": "Èric Zapater <ericzm@ext.inditex.com>"
+    }
+  }
+}
