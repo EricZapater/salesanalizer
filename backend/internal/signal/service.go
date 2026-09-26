@@ -33,14 +33,14 @@ func NewService(repo *Repository) *Service {
 		repo:     repo,
 		scrapers: make([]Scraper, 0),
 		httpClient: &http.Client{
-			Timeout: 15 * time.Second,
+			Timeout: 20 * time.Second,
 		},
 	}
 
-	// Registre per defecte dels extractors inicials
+	// Registre d'extractors per defecte aplicant el patró Strategy
 	svc.RegisterScraper(NewFeinaActivaScraper(nil))
-	svc.RegisterScraper(NewRSSScraper("Reddit SmallBusiness", "https://www.reddit.com/r/smallbusiness/.rss", "queixa_forum"))
-	svc.RegisterScraper(NewRSSScraper("Reddit Entrepreneur", "https://www.reddit.com/r/Entrepreneur/.rss", "queixa_forum"))
+	svc.RegisterScraper(NewRSSScraper("Fòrums Gestió & PIMEs (RSS)", nil))
+	svc.RegisterScraper(NewGoogleSearchScraper())
 
 	return svc
 }
@@ -106,7 +106,7 @@ func (s *Service) GetSystemStatus(ctx context.Context) (*SystemStatusResponse, e
 	}, nil
 }
 
-// ProcessScrapers itera de forma seqüencial sobre els extractors registrats
+// ProcessScrapers itera de forma seqüencial sobre tots els extractors registrats
 func (s *Service) ProcessScrapers(ctx context.Context) (*ScraperRunResult, error) {
 	signalsToday, err := s.repo.CountSignalsToday(ctx)
 	if err != nil {
@@ -306,6 +306,8 @@ func (s *Service) analyzeWithGroq(ctx context.Context, title, text, signalType s
 	systemPrompt := `Ets un analista d'oportunitats Micro-SaaS.
 La teva missió és analitzar ofertes de feina i queixes en fòrums per detectar tasques manuals ineficients (Excel trencats, introducció de dades, gestió de torns, comunicació dispersa) que es puguin resoldre amb un Micro-SaaS d'una sola funció (<100€/mes).
 
+PROHIBICIÓ ESTRICTA: No proposis MAI cap solució basada en OCR (Reconeixement Òptic de Caràcters), escaneig de documents físics o processament automàtic de factures en paper. Busca exclusivament solucions de software basades en formularis digitals purs, portals de dades o micro-SaaS on l'usuari teclegi o seleccioni la informació directament des de zero.
+
 Retorna ÚNICAMENT un objecte JSON amb aquests camps exactes:
 {
   "ineficiencia_manual": "Què estan fent a mà o amb un procés trencat",
@@ -382,22 +384,22 @@ func (s *Service) fallbackAnalysis(title, text string) *OpportunityAnalysis {
 
 	score := 4
 	ineficiencia := "Tasca manual repetitiva gestionada amb fulls de càlcul o coordinació manual."
-	proposta := "Micro-SaaS d'automatització directe d'un sol flux."
+	proposta := "Micro-SaaS d'automatització directa mitjançant formulari web d'un sol flux."
 	decisor := "Gerent / Responsable d'Operacions"
-	ganxo := "He vist la vostra publicació. Tenim una eina que automatitza aquest flux en 2 minuts."
+	ganxo := "He vist la vostra publicació. Tenim una eina web que estandarditza aquest flux en 2 minuts des de zero."
 
 	if strings.Contains(textLower, "quadrant") || strings.Contains(textLower, "torn") {
 		score = 5
 		ineficiencia = "Planificació de quadrants de torns rotatius en fulls Excel i avisos dispersos per WhatsApp."
-		proposta = "QuadrantBot: Generació automàtica de torns mensuals amb notificació als treballadors."
+		proposta = "QuadrantBot: Portal web per a generació i selecció interactiva de torns mensuals amb notificació als treballadors."
 		decisor = "Cap de Planta / Producció"
-		ganxo = "Tenim una eina que calcula els quadrants automàticament sense passar per Excel."
+		ganxo = "Tenim una eina web directa per configurar els quadrants dels operaris sense obrir cap Excel."
 	} else if strings.Contains(textLower, "albar") || strings.Contains(textLower, "transport") || strings.Contains(textLower, "ruta") {
 		score = 5
-		ineficiencia = "Picar dades d'albarans en paper a l'ordinador i control manual d'enviaments."
-		proposta = "ScanAlbara: OCR d'albarans amb captura via foto i exportació automàtica a taula."
+		ineficiencia = "Gestió manual de fulls de ruta i albarans en paper amb re-entrada de dades a l'oficina."
+		proposta = "RutaDirect: Formulari mòbil web per a xofers per registrar entregues i signatures en temps real des de zero."
 		decisor = "Cap de Trànsit / Logística"
-		ganxo = "Voleu digitalitzar els albarans amb una sola foto des del mòbil?"
+		ganxo = "Voleu que els xofers introdueixin les dades d'entrega directament des del mòbil eliminant el paper a l'oficina?"
 	}
 
 	return &OpportunityAnalysis{

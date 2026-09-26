@@ -25,12 +25,14 @@ func NewFeinaActivaScraper(keywords []string) *FeinaActivaScraper {
 			"gestió d'estocs",
 			"quadrants",
 			"introducció de dades",
-			"gestió de rutes",
+			"full de rutes",
+			"albarans",
+			"manteniment preventiu",
 		}
 	}
 	return &FeinaActivaScraper{
 		client: &http.Client{
-			Timeout: 20 * time.Second,
+			Timeout: 25 * time.Second,
 		},
 		keywords: keywords,
 	}
@@ -40,9 +42,9 @@ func (s *FeinaActivaScraper) Name() string {
 	return "Feina Activa (SOC)"
 }
 
-// randomDelay aplica un retard aleatori entre peticions HTTP per evitar bloquejos
+// randomDelay aplica un retard aleatori d'entre 10 i 25 segons entre peticions HTTP per evitar bloquejos
 func (s *FeinaActivaScraper) randomDelay(ctx context.Context) error {
-	delaySec := 3 + rand.Intn(6) // 3..8 segons
+	delaySec := 10 + rand.Intn(16) // 10..25 segons
 	select {
 	case <-time.After(time.Duration(delaySec) * time.Second):
 		return nil
@@ -59,7 +61,7 @@ func (s *FeinaActivaScraper) Fetch(ctx context.Context) ([]RawSignal, error) {
 			return signals, ctx.Err()
 		}
 
-		// Aplicar retard entre peticions consecutives per evitar bloquejos
+		// Aplicar retard aleatori d'entre 10 i 25 segons entre peticions consecutives
 		if i > 0 {
 			if err := s.randomDelay(ctx); err != nil {
 				return signals, err

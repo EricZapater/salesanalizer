@@ -39,14 +39,17 @@ export const RadarTable: React.FC<RadarTableProps> = ({ onSelectOffer }) => {
   };
 
   const getSourceBadge = (source: string) => {
-    switch (source.toLowerCase()) {
-      case 'soc':
-        return <Chip label="SOC" size="small" sx={{ bgcolor: '#1e3a8a', color: '#93c5fd', fontWeight: 600, fontSize: 11 }} />;
-      case 'infofeina':
-        return <Chip label="Infofeina" size="small" sx={{ bgcolor: '#581c87', color: '#d8b4fe', fontWeight: 600, fontSize: 11 }} />;
-      default:
-        return <Chip label="Manual" size="small" sx={{ bgcolor: '#065f46', color: '#6ee7b7', fontWeight: 600, fontSize: 11 }} />;
+    const s = (source || '').toLowerCase();
+    if (s.includes('soc') || s.includes('feina_activa') || s.includes('feina activa')) {
+      return <Chip label="SOC" size="small" sx={{ bgcolor: '#1e3a8a', color: '#93c5fd', fontWeight: 600, fontSize: 11 }} />;
     }
+    if (s.includes('reddit')) {
+      return <Chip label="Reddit" size="small" sx={{ bgcolor: '#7c2d12', color: '#fdba74', fontWeight: 600, fontSize: 11 }} />;
+    }
+    if (s.includes('infofeina')) {
+      return <Chip label="Infofeina" size="small" sx={{ bgcolor: '#581c87', color: '#d8b4fe', fontWeight: 600, fontSize: 11 }} />;
+    }
+    return <Chip label={source || 'Manual'} size="small" sx={{ bgcolor: '#065f46', color: '#6ee7b7', fontWeight: 600, fontSize: 11 }} />;
   };
 
   if (isLoading && offers.length === 0) {

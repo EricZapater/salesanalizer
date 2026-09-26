@@ -2,7 +2,6 @@ package signal
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"regexp"
 	"strings"
@@ -11,28 +10,38 @@ import (
 	"github.com/mmcdole/gofeed"
 )
 
-type RSSScraper struct {
-	name       string
-	feedURL    string
-	signalType string
-	parser     *gofeed.Parser
+type RSSFeedConfig struct {
+	Name       string
+	URL        string
+	SignalType string
 }
 
-func NewRSSScraper(name, feedURL, signalType string) *RSSScraper {
-	if signalType == "" {
-		signalType = "queixa_forum"
+type RSSScraper struct {
+	name   string
+	feeds  []RSSFeedConfig
+	parser *gofeed.Parser
+}
+
+// NewRSSScraper crea un extractor RSS compatible amb múltiples feeds de fòrums
+func NewRSSScraper(name string, feedURLs []RSSFeedConfig) *RSSScraper {
+	if len(feedURLs) == 0 {
+		feedURLs = []RSSFeedConfig{
+			{Name: "Reddit SmallBusiness", URL: "https://www.reddit.com/r/smallbusiness/.rss", SignalType: "queixa_forum"},
+			{Name: "Reddit Entrepreneur", URL: "https://www.reddit.com/r/Entrepreneur/.rss", SignalType: "queixa_forum"},
+			{Name: "Reddit Manufacturing", URL: "https://www.reddit.com/r/manufacturing/.rss", SignalType: "queixa_forum"},
+			{Name: "Reddit Logistics", URL: "https://www.reddit.com/r/logistics/.rss", SignalType: "queixa_forum"},
+		}
 	}
 
 	fp := gofeed.NewParser()
 	fp.Client = &http.Client{
-		Timeout: 15 * time.Second,
+		Timeout: 20 * time.Second,
 	}
 
 	return &RSSScraper{
-		name:       name,
-		feedURL:    feedURL,
-		signalType: signalType,
-		parser:     fp,
+		name:   name,
+		feeds:  feedURLs,
+		parser: fp,
 	}
 }
 
@@ -41,40 +50,56 @@ func (s *RSSScraper) Name() string {
 }
 
 func (s *RSSScraper) Fetch(ctx context.Context) ([]RawSignal, error) {
-	feed, err := s.parser.ParseURLWithContext(s.feedURL, ctx)
-	if err != nil {
-		return nil, fmt.Errorf("error analitzant feed RSS (%s): %w", s.feedURL, err)
-	}
-
 	var signals []RawSignal
 	htmlTagRegex := regexp.MustCompile(`<[^>]*>`)
 
-	for _, item := range feed.Items {
+	for _, feedConfig := range s.feeds {
 		if ctx.Err() != nil {
 			return signals, ctx.Err()
 		}
 
-		cleanContent := item.Content
-		if cleanContent == "" {
-			cleanContent = item.Description
+		feed, err := s.parser.ParseURLWithContext(feedConfig.URL, ctx)
+		if err != nil {
+			// Si un feed específic falla o fa rate-limiting, continuem amb els altres
+			continue
 		}
 
-		cleanContent = htmlTagRegex.ReplaceAllString(cleanContent, " ")
-		cleanContent = strings.TrimSpace(cleanContent)
-
-		var authorCompany *string
-		if item.Author != nil && item.Author.Name != "" {
-			authorCompany = &item.Author.Name
+		sigType := feedConfig.SignalType
+		if sigType == "" {
+			sigType = "queixa_forum"
 		}
 
-		signals = append(signals, RawSignal{
-			SourceURL:   item.Link,
-			CompanyName: authorCompany,
-			Title:       item.Title,
-			RawText:     cleanContent,
-			SignalType:  s.signalType,
-			Source:      s.name,
-		})
+		for _, item := range feed.Items {
+			if ctx.Err() != nil {
+				return signals, ctx.Err()
+			}
+
+			cleanContent := item.Content
+			if cleanContent == "" {
+				cleanContent = item.Description
+			}
+
+			cleanContent = htmlTagRegex.ReplaceAllString(cleanContent, " ")
+			cleanContent = strings.TrimSpace(cleanContent)
+
+			var authorCompany *string
+			if item.Author != nil && item.Author.Name != "" {
+				authorCompany = &item.Author.Name
+			}
+
+			signals = append(signals, RawSignal{
+				SourceURL:   item.Link,
+				CompanyName: authorCompany,
+				Title:       item.Title,
+				RawText:     cleanContent,
+				SignalType:  sigType,
+				Source:      feedConfig.Name,
+			})
+		}
+	}
+
+	if len(signals) == 0 && ctx.Err() != nil {
+		return nil, ctx.Err()
 	}
 
 	return signals, nil
