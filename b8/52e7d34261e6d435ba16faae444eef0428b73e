@@ -1,0 +1,20 @@
+backend/internal/signal/scraper_searxng.go
+  h_42175f19913982 98-100
+docker-compose.local.yml
+  h_42175f19913982 33-34
+docker-compose.yml
+  h_42175f19913982 10-11
+searxng/settings.yml
+  h_42175f19913982 1-24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b852e7d34261e6d435ba16faae444eef0428b73e",
+  "prompts": {},
+  "humans": {
+    "h_42175f19913982": {
+      "author": "Èric Zapater <ericzm@ext.inditex.com>"
+    }
+  }
+}
