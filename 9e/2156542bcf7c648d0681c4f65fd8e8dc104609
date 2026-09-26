@@ -1,0 +1,16 @@
+backend/internal/signal/handler.go
+  h_42175f19913982 4,9,108-111
+backend/internal/signal/scraper_feinaactiva.go
+  h_42175f19913982 43,45
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9e2156542bcf7c648d0681c4f65fd8e8dc104609",
+  "prompts": {},
+  "humans": {
+    "h_42175f19913982": {
+      "author": "Èric Zapater <ericzm@ext.inditex.com>"
+    }
+  }
+}
