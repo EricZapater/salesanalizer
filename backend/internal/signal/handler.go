@@ -1,10 +1,12 @@
 package signal
 
 import (
+	"context"
 	"database/sql"
 	"net/http"
 	"salesanalizer/backend/internal/shared"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -103,7 +105,10 @@ func (h *Handler) AnalyzeURL(c *gin.Context) {
 }
 
 func (h *Handler) RunScrapers(c *gin.Context) {
-	result, err := h.service.ProcessScrapers(c.Request.Context())
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	result, err := h.service.ProcessScrapers(ctx)
 	if err != nil {
 		if err == ErrDailyLimitReached {
 			shared.RespondError(c, http.StatusTooManyRequests, "rate_limit_exceeded", err.Error())

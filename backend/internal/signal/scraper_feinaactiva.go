@@ -40,10 +40,9 @@ func (s *FeinaActivaScraper) Name() string {
 	return "Feina Activa (SOC)"
 }
 
-// randomDelay aplica un retard aleatori entre 10 i 25 segons entre peticions HTTP
+// randomDelay aplica un retard aleatori entre peticions HTTP per evitar bloquejos
 func (s *FeinaActivaScraper) randomDelay(ctx context.Context) error {
-	// Retard aleatori entre 10 i 25 segons
-	delaySec := 10 + rand.Intn(16) // 10..25
+	delaySec := 3 + rand.Intn(6) // 3..8 segons
 	select {
 	case <-time.After(time.Duration(delaySec) * time.Second):
 		return nil
