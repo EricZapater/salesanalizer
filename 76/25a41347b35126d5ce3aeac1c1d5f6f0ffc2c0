@@ -1,0 +1,140 @@
+.agent/infra-agent.md
+  h_42175f19913982 1-51
+.env.backend.example
+  h_42175f19913982 1-21
+.env.example
+  h_42175f19913982 1-5
+.env.frontend.example
+  h_42175f19913982 1-2
+.github/workflows/ci.yml
+  h_42175f19913982 1-95
+.github/workflows/deploy.yml
+  h_42175f19913982 1-131
+.gitignore
+  h_42175f19913982 7,18-21,23-26,28,30-32
+CHANGELOG.md
+  h_42175f19913982 1-14
+VERSION
+  h_42175f19913982 1
+backend/.dockerignore
+  h_42175f19913982 1-7
+backend/Dockerfile
+  h_42175f19913982 1-48
+backend/cmd/api/main.go
+  h_42175f19913982 1-158
+backend/cmd/hashpass/main.go
+  h_42175f19913982 1-27
+backend/go.mod
+  h_42175f19913982 1-43
+backend/go.sum
+  h_42175f19913982 1-106
+backend/internal/auth/handler.go
+  h_42175f19913982 1-39
+backend/internal/auth/model.go
+  h_42175f19913982 1-10
+backend/internal/auth/service.go
+  h_42175f19913982 1-69
+backend/internal/auth/service_test.go
+  h_42175f19913982 1-56
+backend/internal/db/db.go
+  h_42175f19913982 1-83
+backend/internal/prospector/handler.go
+  h_42175f19913982 1-123
+backend/internal/prospector/model.go
+  h_42175f19913982 1-72
+backend/internal/prospector/repository.go
+  h_42175f19913982 1-272
+backend/internal/prospector/service.go
+  h_42175f19913982 1-499
+backend/internal/prospector/service_test.go
+  h_42175f19913982 1-14
+backend/internal/shared/auth_middleware.go
+  h_42175f19913982 1-78
+backend/migrations/000001_create_prospector_tables.down.sql
+  h_42175f19913982 1-5
+backend/migrations/000001_create_prospector_tables.up.sql
+  h_42175f19913982 1-42
+constitution.md
+  h_42175f19913982 1-375
+contracts/prospector.openapi.yaml
+  h_42175f19913982 1-439
+docker-compose.local.yml
+  h_42175f19913982 1-72
+docker-compose.yml
+  h_42175f19913982 1-43
+frontend/.dockerignore
+  h_42175f19913982 1-6
+frontend/Dockerfile
+  h_42175f19913982 1-44
+frontend/index.html
+  h_42175f19913982 1-16
+frontend/nginx.conf
+  h_42175f19913982 1-65
+frontend/package.json
+  h_42175f19913982 1-31
+frontend/src/App.tsx
+  h_42175f19913982 1-37
+frontend/src/api/client.ts
+  h_42175f19913982 1-29
+frontend/src/index.css
+  h_42175f19913982 1-21
+frontend/src/main.tsx
+  h_42175f19913982 1-10
+frontend/src/modules/prospector/api.ts
+  h_42175f19913982 1-39
+frontend/src/modules/prospector/components/IngestCard.tsx
+  h_42175f19913982 1-81
+frontend/src/modules/prospector/components/LateralDrawer.tsx
+  h_42175f19913982 1-338
+frontend/src/modules/prospector/components/RadarTable.tsx
+  h_42175f19913982 1-185
+frontend/src/modules/prospector/store.ts
+  h_42175f19913982 1-127
+frontend/src/modules/prospector/types.ts
+  h_42175f19913982 1-60
+frontend/src/modules/prospector/views/LoginView.tsx
+  h_42175f19913982 1-143
+frontend/src/modules/prospector/views/RadarView.tsx
+  h_42175f19913982 1-213
+frontend/src/router/AppRouter.tsx
+  h_42175f19913982 1-31
+frontend/src/vite-env.d.ts
+  h_42175f19913982 1-9
+frontend/tsconfig.json
+  h_42175f19913982 1-25
+frontend/tsconfig.node.json
+  h_42175f19913982 1-10
+frontend/vite.config.ts
+  h_42175f19913982 1-15
+mockups/approvals.md
+  h_42175f19913982 1-14
+mockups/prospector/login.html
+  h_42175f19913982 1-181
+mockups/prospector/radar_dashboard.html
+  h_42175f19913982 1-851
+pnpm-lock.yaml
+  h_42175f19913982 1-2015
+pnpm-workspace.yaml
+  h_42175f19913982 1-2
+product-functional-spec.md
+  h_42175f19913982 1-23
+qa-reports/prospector.md
+  h_42175f19913982 1-31
+security-reports/prospector.md
+  h_42175f19913982 1-23
+specs/prospector.md
+  h_42175f19913982 1-140
+ux-reports/prospector.md
+  h_42175f19913982 1-23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7625a41347b35126d5ce3aeac1c1d5f6f0ffc2c0",
+  "prompts": {},
+  "humans": {
+    "h_42175f19913982": {
+      "author": "Èric Zapater <ericzm@ext.inditex.com>"
+    }
+  }
+}
