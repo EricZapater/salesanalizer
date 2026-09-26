@@ -1,0 +1,16 @@
+backend/internal/signal/scraper_rss.go
+  h_42175f19913982 25,29-48,68-87,121-125
+backend/internal/signal/service.go
+  h_42175f19913982 471-476,482,484-486
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6e7c39b6da870be6abba3c7b82a11d531ce59500",
+  "prompts": {},
+  "humans": {
+    "h_42175f19913982": {
+      "author": "Èric Zapater <ericzm@ext.inditex.com>"
+    }
+  }
+}
