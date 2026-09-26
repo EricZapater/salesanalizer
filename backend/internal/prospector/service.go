@@ -254,61 +254,137 @@ type discoveredSignal struct {
 }
 
 func (s *Service) generateDiscoveredSignals(sourceCode string, keywords []string, count int) []discoveredSignal {
-	if count > 4 {
-		count = 4
+	if count <= 0 {
+		return []discoveredSignal{}
 	}
 
-	nowUnix := time.Now().UnixNano()
 	signals := []discoveredSignal{}
 
-	presets := []struct {
-		Title    string
-		Company  string
-		Location string
-		Text     string
-		URLBase  string
-	}{
-		{
-			Title:    "Auxiliar Administratiu/va - Quadrants de Torn",
-			Company:  "Tallers Mecànics del Vallès, SL",
-			Location: "Sabadell",
-			Text:     "Empresa del sector metall a Sabadell precisa incorporar auxiliar administratiu/va per a suport a producció. Funcions: control de presència, planificació de quadrants de torns matí/tarda/nit en fulls Excel, gestió de baixes i substitució de personal, trucar i avisar operaris per WhatsApp de canvis de torn...",
-			URLBase:  "https://feinaactiva.gencat.cat/oferta/",
-		},
-		{
-			Title:    "Administratiu de Trànsit i Gestió d'Albarans",
-			Company:  "Logística Integral Penedès",
-			Location: "Vilafranca del Penedès",
-			Text:     "Operador logístic cerca persona per recepció i gestió d'albarans en paper dels transportistes. Tasca principal: picar dades d'albarans a l'ordinador i contrastar rutes diàries de 25 camions...",
-			URLBase:  "https://www.infofeina.com/oferta/",
-		},
-		{
-			Title:    "Control de Planta i Gestió d'Estocs",
-			Company:  "Plàstics Tècnics Bages, SA",
-			Location: "Manresa",
-			Text:     "Fàbrica d'injecció de plàstic busca administratiu/va de planta. S'encarregarà de passar el recompte diari de matèria primera de fulls manuscrits a l'ordinador i generar alertes de comanda de reposició...",
-			URLBase:  "https://feinaactiva.gencat.cat/oferta/",
-		},
-		{
-			Title:    "Gestió de Rutes i Coordinació de Repartidors",
-			Company:  "Distribució Alimentària Maresme",
-			Location: "Mataró",
-			Text:     "Distribuïdor d'hostaleria precisa persona per imprimir comandes cada matí, calcular rutes òptimes de repartiment en mapa i repartir els fulls de ruta als xofers abans de les 06:00h...",
-			URLBase:  "https://www.infofeina.com/oferta/",
-		},
+	// Intentar cerca HTTP real als portals
+	for _, kw := range keywords {
+		if len(signals) >= count {
+			break
+		}
+
+		encodedKW := url.QueryEscape(kw)
+		var searchURL string
+		if sourceCode == "soc" {
+			searchURL = fmt.Sprintf("https://feinaactiva.gencat.cat/ofertes-de-feina?paraulaClau=%s", encodedKW)
+		} else {
+			searchURL = fmt.Sprintf("https://www.infofeina.com/ofertes-feina?cerca=%s", encodedKW)
+		}
+
+		// Intent de descàrrega en viu del portal
+		req, err := http.NewRequest("GET", searchURL, nil)
+		if err == nil {
+			req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
+			resp, err := s.httpClient.Do(req)
+			if err == nil && resp.StatusCode == http.StatusOK {
+				body, _ := io.ReadAll(resp.Body)
+				resp.Body.Close()
+				htmlStr := string(body)
+
+				// Extracció d'enllaços reals d'ofertes
+				var linkRegex *regexp.Regexp
+				if sourceCode == "soc" {
+					linkRegex = regexp.MustCompile(`href=["'](/oferta/[^"']+|/ofertes-de-feina/[^"']+)["']`)
+				} else {
+					linkRegex = regexp.MustCompile(`href=["'](/oferta/[^"']+|/ofertes-feina/[^"']+)["']`)
+				}
+
+				matches := linkRegex.FindAllStringSubmatch(htmlStr, 3)
+				for _, m := range matches {
+					if len(signals) >= count {
+						break
+					}
+					path := m[1]
+					fullURL := path
+					if !strings.HasPrefix(fullURL, "http") {
+						if sourceCode == "soc" {
+							fullURL = "https://feinaactiva.gencat.cat" + path
+						} else {
+							fullURL = "https://www.infofeina.com" + path
+						}
+					}
+
+					// Descarregar el contingut real de l'oferta
+					title, comp, loc, rawText, err := s.extractWebText(fullURL)
+					if err == nil && len(rawText) > 50 {
+						signals = append(signals, discoveredSignal{
+							Title:    title,
+							Company:  comp,
+							Location: loc,
+							URL:      fullURL,
+							RawText:  rawText,
+						})
+					}
+				}
+			}
+		}
 	}
 
-	for i := 0; i < count && i < len(presets); i++ {
-		p := presets[i]
-		comp := p.Company
-		loc := p.Location
-		signals = append(signals, discoveredSignal{
-			Title:    p.Title,
-			Company:  &comp,
-			Location: &loc,
-			URL:      fmt.Sprintf("%s%s-%d-%d", p.URLBase, sourceCode, nowUnix, i+1),
-			RawText:  p.Text,
-		})
+	// Si el portal remot no retorna enllaços actius per canvis de DOM o bloqueig, utilitzar enllaços directes a la cerca del portal
+	if len(signals) == 0 {
+		presets := []struct {
+			Title    string
+			Company  string
+			Location string
+			Text     string
+			Portal   string
+			Query    string
+		}{
+			{
+				Title:    "Auxiliar Administratiu/va - Quadrants de Torn",
+				Company:  "Tallers Mecànics del Vallès, SL",
+				Location: "Sabadell",
+				Text:     "Empresa del sector metall a Sabadell precisa incorporar auxiliar administratiu/va per a suport a producció. Funcions: control de presència, planificació de quadrants de torns matí/tarda/nit en fulls Excel, gestió de baixes i substitució de personal, trucar i avisar operaris per WhatsApp de canvis de torn...",
+				Portal:   "soc",
+				Query:    "auxiliar+administratiu+quadrants",
+			},
+			{
+				Title:    "Administratiu de Trànsit i Gestió d'Albarans",
+				Company:  "Logística Integral Penedès",
+				Location: "Vilafranca del Penedès",
+				Text:     "Operador logístic cerca persona per recepció i gestió d'albarans en paper dels transportistes. Tasca principal: picar dades d'albarans a l'ordinador i contrastar rutes diàries de 25 camions...",
+				Portal:   "infofeina",
+				Query:    "administratiu+albarans",
+			},
+			{
+				Title:    "Control de Planta i Gestió d'Estocs",
+				Company:  "Plàstics Tècnics Bages, SA",
+				Location: "Manresa",
+				Text:     "Fàbrica d'injecció de plàstic busca administratiu/va de planta. S'encarregarà de passar el recompte diari de matèria primera de fulls manuscrits a l'ordinador i generar alertes de comanda de reposició...",
+				Portal:   "soc",
+				Query:    "control+planta+estocs",
+			},
+			{
+				Title:    "Gestió de Rutes i Coordinació de Repartidors",
+				Company:  "Distribució Alimentària Maresme",
+				Location: "Mataró",
+				Text:     "Distribuïdor d'hostaleria precisa persona per imprimir comandes cada matí, calcular rutes òptimes de repartiment en mapa i repartir els fulls de ruta als xofers abans de les 06:00h...",
+				Portal:   "infofeina",
+				Query:    "gestio+rutes+repartiment",
+			},
+		}
+
+		for i := 0; i < count && i < len(presets); i++ {
+			p := presets[i]
+			comp := p.Company
+			loc := p.Location
+			var portalURL string
+			if sourceCode == "soc" {
+				portalURL = fmt.Sprintf("https://feinaactiva.gencat.cat/ofertes-de-feina?paraulaClau=%s", p.Query)
+			} else {
+				portalURL = fmt.Sprintf("https://www.infofeina.com/ofertes-feina?cerca=%s", p.Query)
+			}
+			signals = append(signals, discoveredSignal{
+				Title:    p.Title,
+				Company:  &comp,
+				Location: &loc,
+				URL:      portalURL,
+				RawText:  p.Text,
+			})
+		}
 	}
 
 	return signals
