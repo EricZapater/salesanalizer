@@ -112,6 +112,8 @@ jobs:
           port: ${{ secrets.SSH_PORT || 22 }}
           source: "docker-compose.yml,searxng/**"
           target: "~/salesanalizer"
+          overwrite: true
+
 
       - name: Execute remote deployment commands via SSH
         uses: appleboy/ssh-action@v1.0.3
