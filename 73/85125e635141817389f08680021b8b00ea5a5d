@@ -1,0 +1,27 @@
+backend/internal/signal/scraper_feinaactiva.go
+  h_42175f19913982 145-146,148,157
+backend/internal/signal/scraper_rss.go
+  h_42175f19913982 42-46,97-102,104-131,134-135,139,181,188-190,204,216
+frontend/src/modules/prospector/components/RadarTable.tsx
+  h_42175f19913982 58-60,64
+backend/internal/signal/service_test.go
+  h_42175f19913982 4,12,60-64,66-95,97-98
+  h_42175f19913982 6,13,65,96
+backend/internal/signal/scraper_test.go
+  h_42175f19913982 93-122,125
+backend/internal/signal/service.go
+  h_42175f19913982 26,45-48,67,511-514,516,628-632,637
+backend/internal/signal/scraper_searxng.go
+  h_42175f19913982 70-73,75-79,84-86
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7385125e635141817389f08680021b8b00ea5a5d",
+  "prompts": {},
+  "humans": {
+    "h_42175f19913982": {
+      "author": "Èric Zapater <ericzm@ext.inditex.com>"
+    }
+  }
+}
