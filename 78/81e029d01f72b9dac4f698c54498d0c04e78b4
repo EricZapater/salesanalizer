@@ -1,0 +1,14 @@
+backend/internal/prospector/service.go
+  h_42175f19913982 257-258,263-323,326-387
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7881e029d01f72b9dac4f698c54498d0c04e78b4",
+  "prompts": {},
+  "humans": {
+    "h_42175f19913982": {
+      "author": "Èric Zapater <ericzm@ext.inditex.com>"
+    }
+  }
+}
