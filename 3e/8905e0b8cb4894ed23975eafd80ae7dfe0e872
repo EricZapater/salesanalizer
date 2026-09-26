@@ -1,0 +1,14 @@
+backend/internal/db/db.go
+  h_42175f19913982 76-79
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3e8905e0b8cb4894ed23975eafd80ae7dfe0e872",
+  "prompts": {},
+  "humans": {
+    "h_42175f19913982": {
+      "author": "Èric Zapater <ericzm@ext.inditex.com>"
+    }
+  }
+}
