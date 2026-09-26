@@ -1,0 +1,16 @@
+backend/internal/signal/scraper_google.go
+  h_42175f19913982 101-108
+backend/internal/signal/service.go
+  h_42175f19913982 25-27,30-66,142-145,151,318,486-498,500-503,505-510,512-516,519,521-525,527-531,533-537,539-542,544-566,568
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "194f1400c6395962879d36e7f67ba2bbdfeb2497",
+  "prompts": {},
+  "humans": {
+    "h_42175f19913982": {
+      "author": "Èric Zapater <ericzm@ext.inditex.com>"
+    }
+  }
+}
