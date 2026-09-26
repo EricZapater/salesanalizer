@@ -22,3 +22,26 @@ server:
 
 ui:
   static_use_hash: true
+
+engines:
+  - name: duckduckgo
+    engine: duckduckgo
+    shortcut: ddg
+    disabled: false
+  - name: google
+    engine: google
+    shortcut: go
+    disabled: false
+  - name: brave
+    engine: brave
+    shortcut: br
+    disabled: false
+  - name: bing
+    engine: bing
+    shortcut: bi
+    disabled: false
+  - name: ahmia
+    disabled: true
+  - name: torch
+    disabled: true
+

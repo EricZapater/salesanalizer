@@ -205,6 +205,9 @@ func (s *Service) ProcessScrapersWithProgress(ctx context.Context, onProgress fu
 		FunFact:       entertainmentPool[rand.Intn(len(entertainmentPool))].text,
 	})
 
+	log.Printf("[Pipeline] === INICI D'EXECUCIÓ DE SCRAPERS ===")
+	log.Printf("[Pipeline] Extractors registrats: %d | Límit diari: %d (avui portem %d)", len(s.scrapers), dailyLimit, signalsToday)
+
 	// 1. Execució PARAL·LELA de tots els scrapers registrats
 	resChan := make(chan scraperResult, len(s.scrapers))
 	var wg sync.WaitGroup
@@ -213,7 +216,7 @@ func (s *Service) ProcessScrapersWithProgress(ctx context.Context, onProgress fu
 		wg.Add(1)
 		go func(scraper Scraper) {
 			defer wg.Done()
-			log.Printf("[Parallel Worker] Iniciant extractor: %s", scraper.Name())
+			log.Printf("[Pipeline Worker] 🚀 Llançant extractor: %s", scraper.Name())
 			sigs, fetchErr := scraper.Fetch(ctx)
 			resChan <- scraperResult{
 				scraperName: scraper.Name(),
@@ -239,7 +242,7 @@ func (s *Service) ProcessScrapersWithProgress(ctx context.Context, onProgress fu
 
 		if res.err != nil {
 			errMsg := res.err.Error()
-			log.Printf("Avis scraper %s: %v", res.scraperName, res.err)
+			log.Printf("[Pipeline Worker] ⚠️ Avis extractor %s: %v", res.scraperName, res.err)
 			_ = s.repo.RecordScraperRun(ctx, res.scraperName, "error", 0, &errMsg)
 			emit(ProgressEvent{
 				Type:     "progress",
@@ -251,6 +254,7 @@ func (s *Service) ProcessScrapersWithProgress(ctx context.Context, onProgress fu
 			items := len(res.signals)
 			totalFound += items
 			allRawSignals = append(allRawSignals, res.signals...)
+			log.Printf("[Pipeline Worker] ✅ Extractor %s finalitzat: %d senyals bruts recollits", res.scraperName, items)
 			_ = s.repo.RecordScraperRun(ctx, res.scraperName, "ok", items, nil)
 			emit(ProgressEvent{
 				Type:     "progress",
@@ -275,6 +279,7 @@ func (s *Service) ProcessScrapersWithProgress(ctx context.Context, onProgress fu
 	})
 
 	var pendingAnalysis []RawSignal
+	alreadyExisted := 0
 	for _, raw := range allRawSignals {
 		if raw.SourceURL == "" {
 			continue
@@ -282,15 +287,18 @@ func (s *Service) ProcessScrapersWithProgress(ctx context.Context, onProgress fu
 		exists, err := s.repo.ExistsByURL(ctx, raw.SourceURL)
 		if err == nil && !exists {
 			pendingAnalysis = append(pendingAnalysis, raw)
+		} else {
+			alreadyExisted++
 		}
 	}
 
-	log.Printf("Senyals únics nous per analitzar: %d", len(pendingAnalysis))
+	log.Printf("[Pipeline] Resum desduplicació: %d totals, %d ja existents a BD, %d nous candidats per analitzar", len(allRawSignals), alreadyExisted, len(pendingAnalysis))
 
 	totalAnalyzed := 0
 	totalToAnalyze := len(pendingAnalysis)
 	if totalToAnalyze > (dailyLimit - signalsToday) {
 		totalToAnalyze = dailyLimit - signalsToday
+		log.Printf("[Pipeline] Ajustat per límit diari restant: analitzarem %d senyals", totalToAnalyze)
 	}
 
 	for i := 0; i < totalToAnalyze; i++ {
@@ -302,9 +310,11 @@ func (s *Service) ProcessScrapersWithProgress(ctx context.Context, onProgress fu
 		// Desar el senyal a la BD
 		signalID, err := s.repo.SaveRawSignal(ctx, &rawSig)
 		if err != nil {
-			log.Printf("Error desant senyal: %v", err)
+			log.Printf("[Pipeline] ⚠️ Error desant senyal a BD: %v", err)
 			continue
 		}
+
+		log.Printf("[Pipeline IA %d/%d] 🧠 Analitzant senyal [ID=%s] [%s]: %q (Font: %s)", i+1, totalToAnalyze, signalID, rawSig.SignalType, rawSig.Title, rawSig.Source)
 
 		analyzingProgress := 55 + int((float64(i+1)/float64(totalToAnalyze))*40.0) // 55% .. 95%
 		emit(ProgressEvent{
@@ -318,12 +328,17 @@ func (s *Service) ProcessScrapersWithProgress(ctx context.Context, onProgress fu
 		// Anàlisi IA amb fallback automàtic de models
 		analysis, err := s.analyzeWithGroq(ctx, rawSig.Title, rawSig.RawText, rawSig.SignalType)
 		if err != nil {
-			log.Printf("Avis Groq: %v. Usant fallback.", err)
+			log.Printf("[Pipeline IA %d/%d] ⚠️ Avis Groq: %v. Usant anàlisi de suport heurístic.", i+1, totalToAnalyze, err)
 			analysis = s.fallbackAnalysis(rawSig.Title, rawSig.RawText)
 		}
 
+		log.Printf("[Pipeline IA %d/%d] 💡 Resultat: Score=%d/5 | Dolor=%q | Micro-SaaS=%q | Decisor=%q",
+			i+1, totalToAnalyze, analysis.ViabilitatPLGScore, analysis.IneficienciaManual, analysis.PropostaMicroSaas, analysis.DecisorCompra)
+
 		analysis.SignalID = signalID
-		if err := s.repo.SaveOpportunityAnalysis(ctx, analysis); err == nil {
+		if err := s.repo.SaveOpportunityAnalysis(ctx, analysis); err != nil {
+			log.Printf("[Pipeline IA %d/%d] ⚠️ Error desant anàlisi a BD: %v", i+1, totalToAnalyze, err)
+		} else {
 			totalAnalyzed++
 		}
 	}
@@ -334,6 +349,8 @@ func (s *Service) ProcessScrapersWithProgress(ctx context.Context, onProgress fu
 		AnalyzedCount:  totalAnalyzed,
 		Message:        fmt.Sprintf("Rastreig completat. S'han trobat %d senyals i generat %d noves oportunitats Micro-SaaS.", totalFound, totalAnalyzed),
 	}
+
+	log.Printf("[Pipeline] === FI D'EXECUCIÓ: %s ===", result.Message)
 
 	emit(ProgressEvent{
 		Type:     "completed",

@@ -3,6 +3,7 @@ package signal
 import (
 	"context"
 	"fmt"
+	"log"
 	"math/rand"
 	"net/http"
 	"net/url"
@@ -42,9 +43,9 @@ func (s *FeinaActivaScraper) Name() string {
 	return "Feina Activa (SOC)"
 }
 
-// randomDelay aplica un retard aleatori d'entre 10 i 25 segons entre peticions HTTP per evitar bloquejos
+// randomDelay aplica un retard aleatori d'entre 3 i 7 segons entre peticions HTTP per evitar bloquejos
 func (s *FeinaActivaScraper) randomDelay(ctx context.Context) error {
-	delaySec := 10 + rand.Intn(16) // 10..25 segons
+	delaySec := 3 + rand.Intn(5) // 3..7 segons
 	select {
 	case <-time.After(time.Duration(delaySec) * time.Second):
 		return nil
@@ -56,12 +57,13 @@ func (s *FeinaActivaScraper) randomDelay(ctx context.Context) error {
 func (s *FeinaActivaScraper) Fetch(ctx context.Context) ([]RawSignal, error) {
 	var signals []RawSignal
 
+	log.Printf("[Feina Activa SOC] Iniciant rastreig per a %d paraules clau...", len(s.keywords))
+
 	for i, kw := range s.keywords {
 		if ctx.Err() != nil {
 			return signals, ctx.Err()
 		}
 
-		// Aplicar retard aleatori d'entre 10 i 25 segons entre peticions consecutives
 		if i > 0 {
 			if err := s.randomDelay(ctx); err != nil {
 				return signals, err
@@ -69,9 +71,11 @@ func (s *FeinaActivaScraper) Fetch(ctx context.Context) ([]RawSignal, error) {
 		}
 
 		searchURL := fmt.Sprintf("https://feinaactiva.gencat.cat/ofertes-de-feina?paraulaClau=%s", url.QueryEscape(kw))
+		log.Printf("[Feina Activa SOC] [%d/%d] Cercant paraula clau: %q -> %s", i+1, len(s.keywords), kw, searchURL)
 
 		req, err := http.NewRequestWithContext(ctx, "GET", searchURL, nil)
 		if err != nil {
+			log.Printf("[Feina Activa SOC] ⚠️ Error preparant petició: %v", err)
 			continue
 		}
 		req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
@@ -79,15 +83,18 @@ func (s *FeinaActivaScraper) Fetch(ctx context.Context) ([]RawSignal, error) {
 
 		resp, err := s.client.Do(req)
 		if err != nil {
+			log.Printf("[Feina Activa SOC] ⚠️ Error HTTP consultant %q: %v", kw, err)
 			continue
 		}
 
 		doc, err := goquery.NewDocumentFromReader(resp.Body)
 		resp.Body.Close()
 		if err != nil {
+			log.Printf("[Feina Activa SOC] ⚠️ Error parsejant HTML per a %q: %v", kw, err)
 			continue
 		}
 
+		kwSignalsCount := 0
 		// Extreure nodes d'ofertes amb goquery
 		doc.Find("a[href*='/oferta/'], a[href*='/ofertes-de-feina/'], .job-item, .card-oferta, article").Each(func(_ int, sel *goquery.Selection) {
 			link, exists := sel.Attr("href")
@@ -132,10 +139,11 @@ func (s *FeinaActivaScraper) Fetch(ctx context.Context) ([]RawSignal, error) {
 				SignalType:  "oferta_feina",
 				Source:      "feina_activa",
 			})
+			kwSignalsCount++
 		})
 
-		// Si el DOM és renderitzat dinàmicament per JS, generem un senyal amb la URL viva de la cerca
-		if len(signals) == 0 {
+		// Si el DOM és renderitzat dinàmicament per JS i no hem trobat elements individuals, guardem la cerca d'ofertes com a senyal
+		if kwSignalsCount == 0 {
 			signals = append(signals, RawSignal{
 				SourceURL:  searchURL,
 				Title:      fmt.Sprintf("Cerca d'ofertes per: %s", kw),
@@ -143,8 +151,14 @@ func (s *FeinaActivaScraper) Fetch(ctx context.Context) ([]RawSignal, error) {
 				SignalType: "oferta_feina",
 				Source:     "feina_activa",
 			})
+			log.Printf("[Feina Activa SOC] Afegit senyal de cerca global per a %q (renderitzat JS)", kw)
+		} else {
+			log.Printf("[Feina Activa SOC] ✅ Trobats %d llocs de treball per a %q", kwSignalsCount, kw)
 		}
 	}
 
+	log.Printf("[Feina Activa SOC] Resum final: %d senyals recollits en total", len(signals))
+
 	return signals, nil
 }
+

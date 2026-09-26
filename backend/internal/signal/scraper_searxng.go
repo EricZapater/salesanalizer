@@ -55,10 +55,12 @@ func NewSearXNGScraperWithClient(baseURL string, client *http.Client) *SearXNGSc
 		client:  client,
 		baseURL: baseURL,
 		dorks: []string{
-			`ext:xls OR ext:pdf "control de presència" OR "quadrants de torns"`,
-			`ext:xls OR ext:pdf "manteniment preventiu" OR "checklist maquinària"`,
-			`ext:xls "control d'estoc" OR "inventari de material"`,
-			`ext:xls "full de rutes" OR "comunicat de treball" "operaris"`,
+			`ext:xls OR ext:xlsx "control de presència" OR "quadrant de torns" OR "control horari"`,
+			`ext:xls OR ext:xlsx "manteniment preventiu" OR "revisió maquinària" OR "part de treball"`,
+			`ext:xls OR ext:xlsx "control d'estoc" OR "inventari de material" OR "fitxa de magatzem"`,
+			`ext:xls OR ext:xlsx "full de ruta" OR "albarans pendents" OR "repartiment transport"`,
+			`filetype:pdf OR filetype:xls "sol·licitud de vacances" OR "petició dies d'assumptes propis" "empresa"`,
+			`filetype:xls "comunicat d'incidències" OR "part d'avaries" "taller"`,
 		},
 	}
 }
@@ -70,7 +72,7 @@ func (s *SearXNGScraper) Name() string {
 func (s *SearXNGScraper) Fetch(ctx context.Context) ([]RawSignal, error) {
 	var signals []RawSignal
 
-	// Escollim 2 dorks aleatoris a cada execució per rotar i optimitzar
+	// Escollim 3 dorks aleatoris a cada execució per rotar i optimitzar
 	dorkPool := make([]string, len(s.dorks))
 	copy(dorkPool, s.dorks)
 	rand.Shuffle(len(dorkPool), func(i, j int) {
@@ -78,36 +80,39 @@ func (s *SearXNGScraper) Fetch(ctx context.Context) ([]RawSignal, error) {
 	})
 
 	selectedDorks := dorkPool
-	if len(selectedDorks) > 2 {
-		selectedDorks = selectedDorks[:2]
+	if len(selectedDorks) > 3 {
+		selectedDorks = selectedDorks[:3]
 	}
 
-	for _, dork := range selectedDorks {
+	log.Printf("[SearXNG Scraper] Executant %d Dorks seleccionats a la instància %s...", len(selectedDorks), s.baseURL)
+
+	for i, dork := range selectedDorks {
 		if ctx.Err() != nil {
 			return signals, ctx.Err()
 		}
 
 		searchEndpoint := fmt.Sprintf("%s/search?q=%s&format=json", s.baseURL, url.QueryEscape(dork))
+		log.Printf("[SearXNG Scraper] [%d/%d] Querying dork: %q -> %s", i+1, len(selectedDorks), dork, searchEndpoint)
 
 		req, err := http.NewRequestWithContext(ctx, "GET", searchEndpoint, nil)
 		if err != nil {
-			log.Printf("Avis SearXNG: error creant petició per a dork %q: %v", dork, err)
+			log.Printf("[SearXNG Scraper] ⚠️ Error creant petició per a dork %q: %v", dork, err)
 			continue
 		}
-		req.Header.Set("User-Agent", "SalesAnalizer-Bot/1.0")
+		req.Header.Set("User-Agent", "SalesAnalizer-Prospector/1.0")
 		req.Header.Set("X-Forwarded-For", "127.0.0.1")
 		req.Header.Set("X-Real-IP", "127.0.0.1")
 		req.Header.Set("Accept", "application/json")
 
 		resp, err := s.client.Do(req)
 		if err != nil {
-			log.Printf("Avis SearXNG: instància no accessible a %s (%v)", s.baseURL, err)
+			log.Printf("[SearXNG Scraper] ⚠️ Instància SearXNG no accessible a %s (%v)", s.baseURL, err)
 			continue
 		}
 
 		if resp.StatusCode != http.StatusOK {
 			resp.Body.Close()
-			log.Printf("Avis SearXNG: codi d'estat no OK (%d) per a %s", resp.StatusCode, searchEndpoint)
+			log.Printf("[SearXNG Scraper] ⚠️ Codi d'estat no OK (%d) per a dork %q", resp.StatusCode, dork)
 			continue
 		}
 
@@ -115,10 +120,11 @@ func (s *SearXNGScraper) Fetch(ctx context.Context) ([]RawSignal, error) {
 		err = json.NewDecoder(resp.Body).Decode(&res)
 		resp.Body.Close()
 		if err != nil {
-			log.Printf("Avis SearXNG: error descodificant JSON: %v", err)
+			log.Printf("[SearXNG Scraper] ⚠️ Error descodificant JSON per a dork %q: %v", dork, err)
 			continue
 		}
 
+		dorkCount := 0
 		for _, item := range res.Results {
 			if item.URL == "" || item.Title == "" {
 				continue
@@ -136,8 +142,14 @@ func (s *SearXNGScraper) Fetch(ctx context.Context) ([]RawSignal, error) {
 				SignalType: "searxng_dork",
 				Source:     "searxng",
 			})
+			dorkCount++
 		}
+
+		log.Printf("[SearXNG Scraper] ✅ Dork %q: trobats %d resultats (motor SearXNG)", dork, dorkCount)
 	}
+
+	log.Printf("[SearXNG Scraper] Resum final: %d senyals recollits en total", len(signals))
 
 	return signals, nil
 }
+
