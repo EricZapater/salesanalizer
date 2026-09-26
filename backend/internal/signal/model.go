@@ -15,7 +15,7 @@ type Signal struct {
 	Location   *string              `json:"location,omitempty"`
 	URL        string               `json:"url"`
 	RawText    string               `json:"raw_text,omitempty"`
-	Status     string               `json:"status"`
+	Status     string               `json:"status"` // "pendent", "enviada", "acceptada", "rebutjada", "descartada"
 	CreatedAt  time.Time            `json:"created_at"`
 	UpdatedAt  time.Time            `json:"updated_at"`
 	Analysis   *OpportunityAnalysis `json:"analysis,omitempty"`
@@ -66,4 +66,19 @@ type ScraperRunResult struct {
 	NewOffersFound int    `json:"new_offers_found"`
 	AnalyzedCount  int    `json:"analyzed_count"`
 	Message        string `json:"message"`
+}
+
+type UpdateStatusRequest struct {
+	Status string `json:"status" binding:"required"`
+}
+
+type ProgressEvent struct {
+	Type          string            `json:"type"` // "start", "progress", "fun_fact", "joke", "analyzing", "completed", "error"
+	Step          string            `json:"step,omitempty"`
+	Message       string            `json:"message"`
+	Progress      int               `json:"progress"` // 0 - 100
+	FunFact       string            `json:"fun_fact,omitempty"`
+	Joke          string            `json:"joke,omitempty"`
+	Result        *ScraperRunResult `json:"result,omitempty"`
+	EstimatedSecs int               `json:"estimated_secs,omitempty"`
 }

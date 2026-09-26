@@ -8,12 +8,14 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math/rand"
 	"net/http"
 	"net/url"
 	"os"
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -79,6 +81,10 @@ func (s *Service) DiscardSignal(ctx context.Context, id string) error {
 	return s.repo.DiscardSignal(ctx, id)
 }
 
+func (s *Service) UpdateSignalStatus(ctx context.Context, id, status string) error {
+	return s.repo.UpdateSignalStatus(ctx, id, status)
+}
+
 func (s *Service) GetSystemStatus(ctx context.Context) (*SystemStatusResponse, error) {
 	signalsToday, err := s.repo.CountSignalsToday(ctx)
 	if err != nil {
@@ -106,8 +112,37 @@ func (s *Service) GetSystemStatus(ctx context.Context) (*SystemStatusResponse, e
 	}, nil
 }
 
-// ProcessScrapers itera de forma seqüencial sobre tots els extractors registrats
+type scraperResult struct {
+	scraperName string
+	signals     []RawSignal
+	err         error
+}
+
+var entertainmentPool = []struct {
+	kind string
+	text string
+}{
+	{"joke", "🤖 Acudit IA: Un full Excel entra a un bar i demana un tallat. El cambrer li diu: 'Són 1,50€'. L'Excel respon: 'D'acord, t'ho guardo com a 01/05/1900'."},
+	{"fun_fact", "💡 Sabies que el 68% de les PIMEs a Catalunya encara gestionen el quadrant de torns rotatius amb un Excel que només sap tocar una persona a l'empresa?"},
+	{"joke", "🤖 Acudit PIME: — Quants consultors calen per automatitzar un procés manual? — Cap, primer farem 4 reunions per documentar el problema en un PDF de 30 pàgines."},
+	{"fun_fact", "💡 La paraula 'Albarà' ve de l'àrab 'al-barā'ah' (comprovant). Té 800 anys d'història... i encara n'hi ha qui els re-pica a mà a l'ordinador cada tarda!"},
+	{"fun_fact", "💡 Les millors oportunitats Micro-SaaS (Score 5) no intenten substituir un ERP sencer, sinó resoldre un sol flux concret (com sol·licitud de vacances o fitxatges d'obra) en menys de 3 clics."},
+	{"joke", "🤖 Acudit Sysadmin: Hi ha dos tipus d'empreses: les que tenen alertes automàtiques i les que tenen un fitxer anomenat 'HORARIS_DEFINITIU_v2_aquest_si.xlsx'."},
+}
+
+// ProcessScrapers executa els scrapers en paral·lel
 func (s *Service) ProcessScrapers(ctx context.Context) (*ScraperRunResult, error) {
+	return s.ProcessScrapersWithProgress(ctx, nil)
+}
+
+// ProcessScrapersWithProgress executa tots els scrapers concurrentment i emet esdeveniments de progrés en temps real
+func (s *Service) ProcessScrapersWithProgress(ctx context.Context, onProgress func(ProgressEvent)) (*ScraperRunResult, error) {
+	emit := func(e ProgressEvent) {
+		if onProgress != nil {
+			onProgress(e)
+		}
+	}
+
 	signalsToday, err := s.repo.CountSignalsToday(ctx)
 	if err != nil {
 		return nil, err
@@ -118,73 +153,159 @@ func (s *Service) ProcessScrapers(ctx context.Context) (*ScraperRunResult, error
 		return nil, ErrDailyLimitReached
 	}
 
+	emit(ProgressEvent{
+		Type:          "start",
+		Message:       "🚀 Llançant tots els extractors multicanal en paral·lel...",
+		Progress:      10,
+		EstimatedSecs: 20,
+		FunFact:       entertainmentPool[rand.Intn(len(entertainmentPool))].text,
+	})
+
+	// 1. Execució PARAL·LELA de tots els scrapers registrats
+	resChan := make(chan scraperResult, len(s.scrapers))
+	var wg sync.WaitGroup
+
+	for _, sc := range s.scrapers {
+		wg.Add(1)
+		go func(scraper Scraper) {
+			defer wg.Done()
+			log.Printf("[Parallel Worker] Iniciant extractor: %s", scraper.Name())
+			sigs, fetchErr := scraper.Fetch(ctx)
+			resChan <- scraperResult{
+				scraperName: scraper.Name(),
+				signals:     sigs,
+				err:         fetchErr,
+			}
+		}(sc)
+	}
+
+	// Tancar canal quan tots els scrapers acabin
+	go func() {
+		wg.Wait()
+		close(resChan)
+	}()
+
+	var allRawSignals []RawSignal
 	totalFound := 0
-	totalAnalyzed := 0
+	scraperCompleted := 0
 
-	for _, scraper := range s.scrapers {
-		if ctx.Err() != nil {
-			return nil, ctx.Err()
+	for res := range resChan {
+		scraperCompleted++
+		currentProg := 10 + int((float64(scraperCompleted)/float64(len(s.scrapers)))*40.0) // 10% .. 50%
+
+		if res.err != nil {
+			errMsg := res.err.Error()
+			log.Printf("Avis scraper %s: %v", res.scraperName, res.err)
+			_ = s.repo.RecordScraperRun(ctx, res.scraperName, "error", 0, &errMsg)
+			emit(ProgressEvent{
+				Type:     "progress",
+				Step:     res.scraperName,
+				Message:  fmt.Sprintf("⚠️ Extractor %s ha finalitzat amb avis.", res.scraperName),
+				Progress: currentProg,
+			})
+		} else {
+			items := len(res.signals)
+			totalFound += items
+			allRawSignals = append(allRawSignals, res.signals...)
+			_ = s.repo.RecordScraperRun(ctx, res.scraperName, "ok", items, nil)
+			emit(ProgressEvent{
+				Type:     "progress",
+				Step:     res.scraperName,
+				Message:  fmt.Sprintf("✅ %s: %d senyals recollits", res.scraperName, items),
+				Progress: currentProg,
+				Joke:     entertainmentPool[rand.Intn(len(entertainmentPool))].text,
+			})
 		}
+	}
 
-		// Comprovar si ja hem arribat al límit
-		if signalsToday+totalAnalyzed >= dailyLimit {
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
+
+	// 2. Desduplicació i processament IA amb Groq
+	emit(ProgressEvent{
+		Type:          "progress",
+		Message:       fmt.Sprintf("🔍 Desduplicant i filtrant %d senyals bruts...", len(allRawSignals)),
+		Progress:      55,
+		EstimatedSecs: 10,
+	})
+
+	var pendingAnalysis []RawSignal
+	for _, raw := range allRawSignals {
+		if raw.SourceURL == "" {
+			continue
+		}
+		exists, err := s.repo.ExistsByURL(ctx, raw.SourceURL)
+		if err == nil && !exists {
+			pendingAnalysis = append(pendingAnalysis, raw)
+		}
+	}
+
+	log.Printf("Senyals únics nous per analitzar: %d", len(pendingAnalysis))
+
+	totalAnalyzed := 0
+	totalToAnalyze := len(pendingAnalysis)
+	if totalToAnalyze > (dailyLimit - signalsToday) {
+		totalToAnalyze = dailyLimit - signalsToday
+	}
+
+	for i := 0; i < totalToAnalyze; i++ {
+		if ctx.Err() != nil {
 			break
 		}
+		rawSig := pendingAnalysis[i]
 
-		log.Printf("Iniciant extracció amb scraper: %s", scraper.Name())
-		rawSignals, err := scraper.Fetch(ctx)
+		// Desar el senyal a la BD
+		signalID, err := s.repo.SaveRawSignal(ctx, &rawSig)
 		if err != nil {
-			errMsg := err.Error()
-			log.Printf("Error a l'extractor %s: %v", scraper.Name(), err)
-			_ = s.repo.RecordScraperRun(ctx, scraper.Name(), "error", 0, &errMsg)
+			log.Printf("Error desant senyal: %v", err)
 			continue
 		}
 
-		scraperFound := len(rawSignals)
-		scraperAnalyzed := 0
-		totalFound += scraperFound
+		analyzingProgress := 55 + int((float64(i+1)/float64(totalToAnalyze))*40.0) // 55% .. 95%
+		emit(ProgressEvent{
+			Type:          "analyzing",
+			Message:       fmt.Sprintf("🧠 Analitzant amb IA Groq (%d de %d): %s", i+1, totalToAnalyze, truncateStr(rawSig.Title, 45)),
+			Progress:      analyzingProgress,
+			EstimatedSecs: (totalToAnalyze - i) * 2,
+			FunFact:       entertainmentPool[rand.Intn(len(entertainmentPool))].text,
+		})
 
-		for _, rawSig := range rawSignals {
-			if signalsToday+totalAnalyzed >= dailyLimit {
-				break
-			}
-
-			// 1. Descartar si ja existeix a la base de dades
-			exists, err := s.repo.ExistsByURL(ctx, rawSig.SourceURL)
-			if err != nil || exists {
-				continue
-			}
-
-			// 2. Desar el senyal a la BD
-			signalID, err := s.repo.SaveRawSignal(ctx, &rawSig)
-			if err != nil {
-				log.Printf("Error desant senyal de %s: %v", scraper.Name(), err)
-				continue
-			}
-
-			// 3. Processament amb Groq
-			analysis, err := s.analyzeWithGroq(ctx, rawSig.Title, rawSig.RawText, rawSig.SignalType)
-			if err != nil {
-				log.Printf("Avis: Error a Groq, usant anàlisi de rescat: %v", err)
-				analysis = s.fallbackAnalysis(rawSig.Title, rawSig.RawText)
-			}
-
-			analysis.SignalID = signalID
-			if err := s.repo.SaveOpportunityAnalysis(ctx, analysis); err == nil {
-				scraperAnalyzed++
-				totalAnalyzed++
-			}
+		// Anàlisi IA
+		analysis, err := s.analyzeWithGroq(ctx, rawSig.Title, rawSig.RawText, rawSig.SignalType)
+		if err != nil {
+			log.Printf("Avis Groq: %v. Usant fallback.", err)
+			analysis = s.fallbackAnalysis(rawSig.Title, rawSig.RawText)
 		}
 
-		_ = s.repo.RecordScraperRun(ctx, scraper.Name(), "ok", scraperFound, nil)
+		analysis.SignalID = signalID
+		if err := s.repo.SaveOpportunityAnalysis(ctx, analysis); err == nil {
+			totalAnalyzed++
+		}
 	}
 
-	return &ScraperRunResult{
+	result := &ScraperRunResult{
 		Success:        true,
 		NewOffersFound: totalFound,
 		AnalyzedCount:  totalAnalyzed,
-		Message:        fmt.Sprintf("Extracció completada. S'han trobat %d senyals i analitzat %d noves oportunitats.", totalFound, totalAnalyzed),
-	}, nil
+		Message:        fmt.Sprintf("Rastreig completat. S'han trobat %d senyals i generat %d noves oportunitats Micro-SaaS.", totalFound, totalAnalyzed),
+	}
+
+	emit(ProgressEvent{
+		Type:     "completed",
+		Message:  result.Message,
+		Progress: 100,
+		Result:   result,
+	})
+
+	return result, nil
+}
+
+func truncateStr(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen] + "..."
 }
 
 // IngestAndAnalyzeURL processa manualment una URL

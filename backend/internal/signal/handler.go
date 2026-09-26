@@ -3,9 +3,12 @@ package signal
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
+	"fmt"
 	"net/http"
 	"salesanalizer/backend/internal/shared"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -22,9 +25,12 @@ func NewHandler(service *Service) *Handler {
 func (h *Handler) RegisterRoutes(rg *gin.RouterGroup) {
 	rg.GET("/offers", h.ListSignals)
 	rg.GET("/offers/:id", h.GetSignalByID)
+	rg.PATCH("/offers/:id/status", h.UpdateStatus)
+	rg.PUT("/offers/:id/status", h.UpdateStatus)
 	rg.DELETE("/offers/:id", h.DiscardSignal)
 	rg.POST("/offers/analyze", h.AnalyzeURL)
 	rg.POST("/scrapers/run", h.RunScrapers)
+	rg.GET("/scrapers/stream", h.StreamScrapers)
 	rg.GET("/system/status", h.GetSystemStatus)
 }
 
@@ -56,6 +62,45 @@ func (h *Handler) GetSignalByID(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, sig)
+}
+
+func (h *Handler) UpdateStatus(c *gin.Context) {
+	id := c.Param("id")
+	var req UpdateStatusRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		shared.RespondError(c, http.StatusBadRequest, "invalid_payload", "El camp 'status' és obligatori")
+		return
+	}
+
+	validStatuses := map[string]bool{
+		"pendent":    true,
+		"pending":    true,
+		"analyzed":   true,
+		"enviada":    true,
+		"acceptada":  true,
+		"rebutjada":  true,
+		"descartada": true,
+		"discarded":  true,
+	}
+	if !validStatuses[strings.ToLower(req.Status)] {
+		shared.RespondError(c, http.StatusBadRequest, "invalid_status", "Estat no vàlid. Valors admesos: pendent, enviada, acceptada, rebutjada, descartada")
+		return
+	}
+
+	if err := h.service.UpdateSignalStatus(c.Request.Context(), id, req.Status); err != nil {
+		if err == sql.ErrNoRows {
+			shared.RespondError(c, http.StatusNotFound, "not_found", "Senyal no trobat")
+			return
+		}
+		shared.RespondError(c, http.StatusInternalServerError, "database_error", err.Error())
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Estat actualitzat correctament",
+		"status":  req.Status,
+	})
 }
 
 func (h *Handler) DiscardSignal(c *gin.Context) {
@@ -119,6 +164,39 @@ func (h *Handler) RunScrapers(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, result)
+}
+
+func (h *Handler) StreamScrapers(c *gin.Context) {
+	c.Writer.Header().Set("Content-Type", "text/event-stream")
+	c.Writer.Header().Set("Cache-Control", "no-cache")
+	c.Writer.Header().Set("Connection", "keep-alive")
+	c.Writer.Header().Set("Transfer-Encoding", "chunked")
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Minute)
+	defer cancel()
+
+	flusher, ok := c.Writer.(http.Flusher)
+	if !ok {
+		shared.RespondError(c, http.StatusInternalServerError, "streaming_unsupported", "Streaming no suportat")
+		return
+	}
+
+	sendEvent := func(event ProgressEvent) {
+		bytes, err := json.Marshal(event)
+		if err == nil {
+			_, _ = fmt.Fprintf(c.Writer, "data: %s\n\n", string(bytes))
+			flusher.Flush()
+		}
+	}
+
+	_, err := h.service.ProcessScrapersWithProgress(ctx, sendEvent)
+	if err != nil {
+		sendEvent(ProgressEvent{
+			Type:     "error",
+			Message:  err.Error(),
+			Progress: 100,
+		})
+	}
 }
 
 func (h *Handler) GetSystemStatus(c *gin.Context) {

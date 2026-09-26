@@ -9,7 +9,7 @@ import {
   Tabs,
   Typography,
 } from '@mui/material';
-import { X, Copy, ExternalLink, Check, AlertTriangle, Rocket, Users, MessageSquare } from 'lucide-react';
+import { X, Copy, ExternalLink, Check, AlertTriangle, Rocket, Users, MessageSquare, Tag } from 'lucide-react';
 import { useProspectorStore } from '../store';
 import { JobOffer } from '../types';
 
@@ -22,7 +22,7 @@ interface LateralDrawerProps {
 export const LateralDrawer: React.FC<LateralDrawerProps> = ({ open, onClose, offer }) => {
   const [currentTab, setCurrentTab] = useState(0);
   const [copied, setCopied] = useState(false);
-  const { systemStatus, setToast } = useProspectorStore();
+  const { systemStatus, setToast, updateOfferStatus } = useProspectorStore();
 
   const handleCopyHook = () => {
     if (offer?.analysis?.ganxo_venda) {
@@ -32,6 +32,16 @@ export const LateralDrawer: React.FC<LateralDrawerProps> = ({ open, onClose, off
       setTimeout(() => setCopied(false), 2000);
     }
   };
+
+  const statusOptions = [
+    { label: 'Pendent', value: 'pendent', color: '#60a5fa', activeBg: '#2563eb' },
+    { label: 'Enviada', value: 'enviada', color: '#c084fc', activeBg: '#7e22ce' },
+    { label: 'Acceptada', value: 'acceptada', color: '#34d399', activeBg: '#059669' },
+    { label: 'Rebutjada', value: 'rebutjada', color: '#f87171', activeBg: '#dc2626' },
+    { label: 'Descartada', value: 'descartada', color: '#9ca3af', activeBg: '#4b5563' },
+  ];
+
+  const currentOfferStatus = (offer?.status || 'pendent').toLowerCase();
 
   return (
     <Drawer
@@ -136,6 +146,46 @@ export const LateralDrawer: React.FC<LateralDrawerProps> = ({ open, onClose, off
                     ? '100% Self-Onboarding sense integració tècnica.'
                     : 'Potencial alt de micro-SaaS.'}
                 </Typography>
+              </Box>
+            </Box>
+
+            {/* Status Selector */}
+            <Box sx={{ p: 2, borderRadius: '10px', bgcolor: '#1f2937', border: '1px solid #374151' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+                <Tag size={15} color="#60a5fa" />
+                <Typography variant="caption" sx={{ fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase' }}>
+                  Estat de l'Oportunitat
+                </Typography>
+              </Box>
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                {statusOptions.map((st) => {
+                  const isCurrent = currentOfferStatus === st.value || (st.value === 'pendent' && currentOfferStatus === 'analyzed');
+                  return (
+                    <Button
+                      key={st.value}
+                      size="small"
+                      variant={isCurrent ? 'contained' : 'outlined'}
+                      onClick={() => updateOfferStatus(offer.id, st.value)}
+                      sx={{
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        textTransform: 'none',
+                        borderRadius: '6px',
+                        py: 0.5,
+                        px: 1.2,
+                        bgcolor: isCurrent ? st.activeBg : 'transparent',
+                        borderColor: isCurrent ? st.activeBg : '#374151',
+                        color: isCurrent ? '#fff' : st.color,
+                        '&:hover': {
+                          bgcolor: isCurrent ? st.activeBg : 'rgba(255,255,255,0.05)',
+                          borderColor: st.activeBg,
+                        },
+                      }}
+                    >
+                      {isCurrent ? `✓ ${st.label}` : st.label}
+                    </Button>
+                  );
+                })}
               </Box>
             </Box>
 

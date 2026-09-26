@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"salesanalizer/backend/internal/db"
+	"strings"
 	"time"
 )
 
@@ -66,7 +67,9 @@ func (r *Repository) ListSignals(ctx context.Context, status string, minScore in
 	argIdx := 1
 
 	if status == "active" {
-		whereClause += " AND jo.status != 'discarded'"
+		whereClause += " AND jo.status NOT IN ('discarded', 'descartada')"
+	} else if status == "pendent" || status == "pending" {
+		whereClause += " AND jo.status IN ('pendent', 'analyzed', 'pending', 'active')"
 	} else if status != "" && status != "all" {
 		whereClause += fmt.Sprintf(" AND jo.status = $%d", argIdx)
 		args = append(args, status)
@@ -212,11 +215,18 @@ func (r *Repository) GetSignalByID(ctx context.Context, id string) (*Signal, err
 	return &s, nil
 }
 
-func (r *Repository) DiscardSignal(ctx context.Context, id string) error {
-	query := `UPDATE job_offers SET status = 'discarded', updated_at = NOW() WHERE id = $1`
-	res, err := r.db.ExecContext(ctx, query, id)
+func (r *Repository) UpdateSignalStatus(ctx context.Context, id, status string) error {
+	normalized := strings.ToLower(strings.TrimSpace(status))
+	if normalized == "discarded" {
+		normalized = "descartada"
+	} else if normalized == "pending" || normalized == "analyzed" {
+		normalized = "pendent"
+	}
+
+	query := `UPDATE job_offers SET status = $1, updated_at = NOW() WHERE id = $2`
+	res, err := r.db.ExecContext(ctx, query, normalized, id)
 	if err != nil {
-		return fmt.Errorf("error descartant senyal: %w", err)
+		return fmt.Errorf("error actualitzant estat del senyal: %w", err)
 	}
 	rows, err := res.RowsAffected()
 	if err != nil {
@@ -226,6 +236,10 @@ func (r *Repository) DiscardSignal(ctx context.Context, id string) error {
 		return sql.ErrNoRows
 	}
 	return nil
+}
+
+func (r *Repository) DiscardSignal(ctx context.Context, id string) error {
+	return r.UpdateSignalStatus(ctx, id, "descartada")
 }
 
 func (r *Repository) CountSignalsToday(ctx context.Context) (int, error) {

@@ -8,8 +8,10 @@ import {
   Snackbar,
   Typography,
   Alert,
+  LinearProgress,
+  Chip,
 } from '@mui/material';
-import { RotateCw, LogOut, Zap } from 'lucide-react';
+import { RotateCw, LogOut, Zap, Sparkles, Filter, Clock } from 'lucide-react';
 import { useProspectorStore } from '../store';
 import { IngestCard } from '../components/IngestCard';
 import { RadarTable } from '../components/RadarTable';
@@ -24,9 +26,12 @@ export const RadarView: React.FC = () => {
     offers,
     selectedOffer,
     systemStatus,
+    statusFilter,
     isScraping,
+    progressState,
     toastMessage,
     fetchOffers,
+    setStatusFilter,
     fetchSystemStatus,
     runScrapers,
     selectOffer,
@@ -42,7 +47,6 @@ export const RadarView: React.FC = () => {
   const handleSelectOffer = async (offer: JobOffer) => {
     selectOffer(offer);
     setDrawerOpen(true);
-    // Load full text if missing
     if (!offer.raw_text) {
       await loadOfferDetail(offer.id);
     }
@@ -52,6 +56,16 @@ export const RadarView: React.FC = () => {
     localStorage.removeItem('salesanalizer_token');
     navigate('/login');
   };
+
+  const filterTabs = [
+    { label: 'Actius (Tots)', value: 'active', color: '#38bdf8' },
+    { label: 'Pendents', value: 'pendent', color: '#60a5fa' },
+    { label: 'Enviades', value: 'enviada', color: '#c084fc' },
+    { label: 'Acceptades', value: 'acceptada', color: '#34d399' },
+    { label: 'Rebutjades', value: 'rebutjada', color: '#f87171' },
+    { label: 'Descartades', value: 'descartada', color: '#9ca3af' },
+    { label: 'Històric Total', value: 'all', color: '#e2e8f0' },
+  ];
 
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: '#090d16', color: '#f9fafb', display: 'flex', flexDirection: 'column' }}>
@@ -102,8 +116,8 @@ export const RadarView: React.FC = () => {
             disabled={isScraping}
             startIcon={isScraping ? <CircularProgress size={14} color="inherit" /> : <RotateCw size={14} />}
             sx={{
-              bgcolor: '#1f2937',
-              borderColor: '#374151',
+              bgcolor: isScraping ? 'rgba(37, 99, 235, 0.2)' : '#1f2937',
+              borderColor: isScraping ? '#3b82f6' : '#374151',
               color: '#93c5fd',
               textTransform: 'none',
               fontWeight: 600,
@@ -115,7 +129,7 @@ export const RadarView: React.FC = () => {
               },
             }}
           >
-            {isScraping ? 'Rastrejant portals...' : 'Rastrejar portals ara'}
+            {isScraping ? 'Rastrejant en paral·lel...' : 'Rastrejar portals ara'}
           </Button>
 
           {/* Quota Badge */}
@@ -166,15 +180,114 @@ export const RadarView: React.FC = () => {
       >
         <IngestCard />
 
-        {/* Section Title */}
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', mb: 2 }}>
+        {/* Live Parallel Scraping Progress & Entertainment Banner */}
+        {progressState && (
+          <Box
+            sx={{
+              mb: 3,
+              p: 2.5,
+              borderRadius: '12px',
+              background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.95))',
+              border: '1px solid rgba(59, 130, 246, 0.4)',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+              position: 'relative',
+              overflow: 'hidden',
+            }}
+          >
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                <CircularProgress size={18} sx={{ color: '#60a5fa' }} />
+                <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#93c5fd' }}>
+                  {progressState.message}
+                </Typography>
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                {progressState.estimated_secs !== undefined && progressState.estimated_secs > 0 && (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: '#9ca3af', fontSize: '12px' }}>
+                    <Clock size={14} /> ~{progressState.estimated_secs}s restants
+                  </Box>
+                )}
+                <Typography variant="caption" sx={{ fontWeight: 700, color: '#34d399', fontSize: '13px' }}>
+                  {progressState.progress}%
+                </Typography>
+              </Box>
+            </Box>
+
+            <LinearProgress
+              variant="determinate"
+              value={progressState.progress}
+              sx={{
+                height: 8,
+                borderRadius: 4,
+                bgcolor: 'rgba(255,255,255,0.08)',
+                '& .MuiLinearProgress-bar': {
+                  background: 'linear-gradient(90deg, #3b82f6, #10b981)',
+                  borderRadius: 4,
+                },
+                mb: 2,
+              }}
+            />
+
+            {/* Fun Fact / Joke Card */}
+            {(progressState.fun_fact || progressState.joke) && (
+              <Box
+                sx={{
+                  p: 1.5,
+                  borderRadius: '8px',
+                  bgcolor: 'rgba(59, 130, 246, 0.08)',
+                  border: '1px dashed rgba(59, 130, 246, 0.3)',
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: 1.5,
+                }}
+              >
+                <Sparkles size={18} color="#fbbf24" style={{ flexShrink: 0, marginTop: 2 }} />
+                <Typography variant="body2" sx={{ color: '#cbd5e1', fontSize: '13px', lineHeight: 1.4 }}>
+                  {progressState.fun_fact || progressState.joke}
+                </Typography>
+              </Box>
+            )}
+          </Box>
+        )}
+
+        {/* Section Title & Status Filters */}
+        <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, justifyContent: 'space-between', alignItems: { xs: 'flex-start', md: 'center' }, gap: 2, mb: 2.5 }}>
           <Box>
             <Typography variant="h6" sx={{ fontWeight: 700, letterSpacing: '-0.01em', color: '#f9fafb' }}>
               El Radar (Prioritzat per Viabilitat PLG)
             </Typography>
             <Typography variant="body2" sx={{ color: '#9ca3af', fontSize: '13px' }}>
-              Les millors oportunitats de Micro-SaaS (Score 5 i 4) amb self-onboarding autònom.
+              Gestiona el pipeline d'oportunitats segons el seu estat de prospecció.
             </Typography>
+          </Box>
+
+          {/* Status Filter Bar */}
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.8, alignItems: 'center' }}>
+            <Filter size={15} color="#9ca3af" style={{ marginRight: 4 }} />
+            {filterTabs.map((tab) => {
+              const isActive = statusFilter === tab.value;
+              return (
+                <Chip
+                  key={tab.value}
+                  label={tab.label}
+                  size="small"
+                  clickable
+                  onClick={() => setStatusFilter(tab.value)}
+                  sx={{
+                    fontWeight: 700,
+                    fontSize: '12px',
+                    px: 0.5,
+                    bgcolor: isActive ? tab.color : '#1f2937',
+                    color: isActive ? '#090d16' : '#9ca3af',
+                    border: `1px solid ${isActive ? tab.color : '#374151'}`,
+                    '&:hover': {
+                      bgcolor: isActive ? tab.color : 'rgba(255,255,255,0.06)',
+                      borderColor: tab.color,
+                    },
+                  }}
+                />
+              );
+            })}
           </Box>
         </Box>
 

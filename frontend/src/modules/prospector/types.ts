@@ -1,5 +1,5 @@
-export type OfferSource = 'soc' | 'infofeina' | 'manual';
-export type OfferStatus = 'pending_analysis' | 'analyzed' | 'discarded';
+export type OfferSource = string;
+export type OfferStatus = 'pendent' | 'enviada' | 'acceptada' | 'rebutjada' | 'descartada' | 'analyzed' | 'pending_analysis' | 'discarded';
 
 export interface OpportunityAnalysis {
   id?: string;
@@ -15,6 +15,7 @@ export interface OpportunityAnalysis {
 export interface JobOffer {
   id: string;
   source: OfferSource;
+  signal_type?: string;
   external_id?: string;
   title: string;
   company?: string;
@@ -57,4 +58,15 @@ export interface ScraperRunResult {
   new_offers_found: number;
   analyzed_count: number;
   message: string;
+}
+
+export interface ProgressEvent {
+  type: 'start' | 'progress' | 'fun_fact' | 'joke' | 'analyzing' | 'completed' | 'error';
+  step?: string;
+  message: string;
+  progress: number;
+  fun_fact?: string;
+  joke?: string;
+  result?: ScraperRunResult;
+  estimated_secs?: number;
 }
