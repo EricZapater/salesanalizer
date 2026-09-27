@@ -90,6 +90,97 @@ func (d *DB) RunAutoMigrations() error {
 	-- Neteja d'enllaços no funcionals de proves inicials
 	UPDATE job_offers SET url = 'https://feinaactiva.gencat.cat' WHERE url LIKE '%feinaactiva.gencat.cat/oferta/%' AND source = 'soc';
 	UPDATE job_offers SET url = 'https://www.infofeina.com/ofertes-feina' WHERE url LIKE '%infofeina.com/oferta/%' AND source = 'infofeina';
+
+	-- Taules V2 Radar de Processos de Negoci & Micro-SaaS
+	CREATE TABLE IF NOT EXISTS evidences (
+		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+		raw_content TEXT NOT NULL,
+		normalized_url TEXT NOT NULL,
+		content_hash VARCHAR(64) NOT NULL,
+		source VARCHAR(50) NOT NULL,
+		source_id VARCHAR(255),
+		author_or_company VARCHAR(255),
+		extracted_process VARCHAR(255),
+		task_description TEXT,
+		frequency VARCHAR(50) DEFAULT 'unknown',
+		manuality_score INT DEFAULT 0 CHECK (manuality_score BETWEEN 0 AND 3),
+		tools_mentioned TEXT[] DEFAULT '{}',
+		sector VARCHAR(100),
+		evidence_type VARCHAR(50),
+		source_evidence_quote VARCHAR(255),
+		evidence_confidence VARCHAR(20) DEFAULT 'mitja',
+		is_duplicate_of UUID REFERENCES evidences(id) ON DELETE SET NULL,
+		published_at TIMESTAMPTZ,
+		created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+	);
+
+	CREATE INDEX IF NOT EXISTS idx_evidences_url ON evidences(normalized_url);
+	CREATE INDEX IF NOT EXISTS idx_evidences_hash ON evidences(content_hash);
+	CREATE INDEX IF NOT EXISTS idx_evidences_source ON evidences(source);
+	CREATE INDEX IF NOT EXISTS idx_evidences_created_at ON evidences(created_at);
+	CREATE INDEX IF NOT EXISTS idx_evidences_duplicate_of ON evidences(is_duplicate_of);
+
+	CREATE TABLE IF NOT EXISTS processes_normalized (
+		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+		canonical_name VARCHAR(255) UNIQUE NOT NULL,
+		category VARCHAR(100) NOT NULL,
+		typical_tools TEXT[] DEFAULT '{}',
+		description TEXT,
+		created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+	);
+
+	CREATE INDEX IF NOT EXISTS idx_processes_category ON processes_normalized(category);
+
+	CREATE TABLE IF NOT EXISTS pain_clusters (
+		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+		process_id UUID NOT NULL REFERENCES processes_normalized(id) ON DELETE CASCADE,
+		title VARCHAR(255) NOT NULL,
+		summary TEXT NOT NULL,
+		status VARCHAR(50) NOT NULL DEFAULT 'emerging',
+		evidence_count INT NOT NULL DEFAULT 0,
+		company_count INT NOT NULL DEFAULT 0,
+		source_count INT NOT NULL DEFAULT 0,
+		sector_breadth INT NOT NULL DEFAULT 0,
+		last_evidence_at TIMESTAMPTZ,
+		created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+		updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+	);
+
+	CREATE INDEX IF NOT EXISTS idx_pain_clusters_status ON pain_clusters(status);
+	CREATE INDEX IF NOT EXISTS idx_pain_clusters_process ON pain_clusters(process_id);
+	CREATE INDEX IF NOT EXISTS idx_pain_clusters_evidence_count ON pain_clusters(evidence_count DESC);
+	CREATE INDEX IF NOT EXISTS idx_pain_clusters_updated_at ON pain_clusters(updated_at DESC);
+
+	CREATE TABLE IF NOT EXISTS pain_cluster_evidences (
+		cluster_id UUID NOT NULL REFERENCES pain_clusters(id) ON DELETE CASCADE,
+		evidence_id UUID NOT NULL REFERENCES evidences(id) ON DELETE CASCADE,
+		relevance_score FLOAT NOT NULL DEFAULT 1.0,
+		added_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+		PRIMARY KEY (cluster_id, evidence_id)
+	);
+
+	CREATE INDEX IF NOT EXISTS idx_pce_evidence ON pain_cluster_evidences(evidence_id);
+
+	CREATE TABLE IF NOT EXISTS opportunities (
+		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+		cluster_id UUID UNIQUE NOT NULL REFERENCES pain_clusters(id) ON DELETE CASCADE,
+		title VARCHAR(255) NOT NULL,
+		target_user VARCHAR(255) NOT NULL,
+		buyer_persona VARCHAR(255) NOT NULL,
+		core_workflow TEXT NOT NULL,
+		value_prop TEXT NOT NULL,
+		pricing_model VARCHAR(100) NOT NULL DEFAULT '30-50€/mes',
+		outreach_hook TEXT NOT NULL,
+		scores JSONB NOT NULL,
+		global_score NUMERIC(4,2) NOT NULL,
+		viability_tier VARCHAR(20) NOT NULL,
+		created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+		updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+	);
+
+	CREATE INDEX IF NOT EXISTS idx_opportunities_global_score ON opportunities(global_score DESC);
+	CREATE INDEX IF NOT EXISTS idx_opportunities_cluster ON opportunities(cluster_id);
+	CREATE INDEX IF NOT EXISTS idx_opportunities_tier ON opportunities(viability_tier);
 	`
 	_, err := d.Exec(schema)
 	if err != nil {
