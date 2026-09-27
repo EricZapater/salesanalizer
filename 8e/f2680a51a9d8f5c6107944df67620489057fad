@@ -1,0 +1,62 @@
+backend/cmd/compare/main.go
+  h_42175f19913982 1-341
+backend/internal/signal/clustering_test.go
+  h_42175f19913982 1-162
+backend/internal/signal/dedup.go
+  h_42175f19913982 1-272
+backend/internal/signal/dedup_test.go
+  h_42175f19913982 1-168
+backend/internal/signal/handler.go
+  h_42175f19913982 32-37,47-136
+backend/internal/signal/model.go
+  h_42175f19913982 94-241
+backend/internal/signal/repository.go
+  h_42175f19913982 6,11-12,327-931
+backend/internal/signal/scoring.go
+  h_42175f19913982 1-75
+backend/internal/signal/scoring_test.go
+  h_42175f19913982 1-229
+backend/internal/signal/service.go
+  h_42175f19913982 117-123,380-393,466-475,669-1648
+backend/internal/signal/service_test.go
+  h_42175f19913982 61-138
+backend/migrations/000003_create_evidences_table.down.sql
+  h_42175f19913982 1-3
+backend/migrations/000003_create_evidences_table.up.sql
+  h_42175f19913982 1-29
+backend/migrations/000004_create_clustering_tables.down.sql
+  h_42175f19913982 1-5
+backend/migrations/000004_create_clustering_tables.up.sql
+  h_42175f19913982 1-42
+backend/migrations/000005_create_opportunities_table.down.sql
+  h_42175f19913982 1-3
+backend/migrations/000005_create_opportunities_table.up.sql
+  h_42175f19913982 1-22
+frontend/src/modules/prospector/api.ts
+  h_42175f19913982 101-131,133
+frontend/src/modules/prospector/components/ClusterTable.tsx
+  h_42175f19913982 1-183
+frontend/src/modules/prospector/components/LateralDrawer.tsx
+  h_42175f19913982 8,13-22,24,29-30,34-40,43,45-49,52-91,93-94,104,116,124-126,128-129,132,153-155,159-163,165-180,182-217,220-222,224,226-230,232-259,261-275,277-279,281-286,288-291,293-324,326-332,334-347,351-361,363-366,369-372,374-377,380-383,385-388
+frontend/src/modules/prospector/components/OpportunityTable.tsx
+  h_42175f19913982 1-181
+frontend/src/modules/prospector/store.ts
+  h_42175f19913982 3-10,13,17-25,28-29,33,39,41-42,44-45,47-48,52,61,65-73,76-77,81,86-96,111-138,144-153,158-174,184-202,254,283-284,291-292,311,323
+frontend/src/modules/prospector/types.ts
+  h_42175f19913982 36-123,161
+frontend/src/modules/prospector/views/RadarView.tsx
+  h_42175f19913982 13-14,16,19-20,23,30,32-33,35-36,39-40,44,46-47,49-50,54-55,61-62,67-76,90-103,147-148,200,292-329,332-335,338-340,344,347-408,412-415,422-423
+specs/prospector.md
+  h_42175f19913982 1,4-6,10-54,58-60,64,66,68-69,71-74,78,80-81,83-85,89,91-92,94-96,100,102-103,105-116,120,122-123,125-139,143,145-146,148-150,154-160,164-279
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8ef2680a51a9d8f5c6107944df67620489057fad",
+  "prompts": {},
+  "humans": {
+    "h_42175f19913982": {
+      "author": "Èric Zapater <ericzm@ext.inditex.com>"
+    }
+  }
+}
