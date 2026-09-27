@@ -10,39 +10,69 @@ import {
   Alert,
   LinearProgress,
   Chip,
+  Tabs,
+  Tab,
 } from '@mui/material';
-import { RotateCw, LogOut, Zap, Sparkles, Filter, Clock } from 'lucide-react';
+import { RotateCw, LogOut, Zap, Sparkles, Filter, Clock, Layers, Award, FileText } from 'lucide-react';
 import { useProspectorStore } from '../store';
 import { IngestCard } from '../components/IngestCard';
+import { ClusterTable } from '../components/ClusterTable';
+import { OpportunityTable } from '../components/OpportunityTable';
 import { RadarTable } from '../components/RadarTable';
 import { LateralDrawer } from '../components/LateralDrawer';
-import { JobOffer } from '../types';
+import { JobOffer, PainCluster, Opportunity } from '../types';
 
 export const RadarView: React.FC = () => {
   const navigate = useNavigate();
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   const {
+    activeView,
     offers,
+    clusters,
+    opportunities,
     selectedOffer,
+    selectedCluster,
+    selectedOpportunity,
     systemStatus,
     statusFilter,
+    clusterFilter,
+    opportunityFilter,
     isScraping,
     progressState,
     toastMessage,
+    setActiveView,
     fetchOffers,
+    fetchClusters,
+    fetchOpportunities,
     setStatusFilter,
+    setClusterFilter,
+    setOpportunityFilter,
     fetchSystemStatus,
     runScrapers,
     selectOffer,
+    selectCluster,
+    selectOpportunity,
     loadOfferDetail,
     setToast,
   } = useProspectorStore();
 
   useEffect(() => {
+    fetchClusters();
+    fetchOpportunities();
     fetchOffers();
     fetchSystemStatus();
   }, []);
+
+  const handleSelectCluster = async (cluster: PainCluster) => {
+    await selectCluster(cluster);
+    setDrawerOpen(true);
+  };
+
+  const handleSelectOpportunity = (opp: Opportunity) => {
+    selectOpportunity(opp);
+    setDrawerOpen(true);
+  };
 
   const handleSelectOffer = async (offer: JobOffer) => {
     selectOffer(offer);
@@ -57,14 +87,26 @@ export const RadarView: React.FC = () => {
     navigate('/login');
   };
 
-  const filterTabs = [
+  const clusterTabs = [
+    { label: 'Tots els clústers', value: 'all', color: '#60a5fa' },
+    { label: 'Consolidats (≥3 evidències)', value: 'consolidated', color: '#34d399' },
+    { label: 'Emergents', value: 'emerging', color: '#fbbf24' },
+  ];
+
+  const opportunityTabs = [
+    { label: 'Totes', value: 'all', color: '#60a5fa' },
+    { label: 'Excel·lents (≥4.0)', value: 'excel·lent', color: '#34d399' },
+    { label: 'Prometedores (≥3.0)', value: 'prometedora', color: '#60a5fa' },
+    { label: 'Febles', value: 'feble', color: '#fbbf24' },
+  ];
+
+  const offerTabs = [
     { label: 'Actius (Tots)', value: 'active', color: '#38bdf8' },
     { label: 'Pendents', value: 'pendent', color: '#60a5fa' },
     { label: 'Enviades', value: 'enviada', color: '#c084fc' },
     { label: 'Acceptades', value: 'acceptada', color: '#34d399' },
     { label: 'Rebutjades', value: 'rebutjada', color: '#f87171' },
     { label: 'Descartades', value: 'descartada', color: '#9ca3af' },
-    { label: 'Històric Total', value: 'all', color: '#e2e8f0' },
   ];
 
   return (
@@ -102,13 +144,12 @@ export const RadarView: React.FC = () => {
           >
             <Zap size={14} /> SalesAnalizer
           </Box>
-          <Typography variant="h6" sx={{ fontWeight: 700, fontSize: '17px', letterSpacing: '-0.02em' }}>
-            Radar d'Oportunitats Micro-SaaS
+          <Typography variant="h6" sx={{ fontWeight: 800, fontSize: '17px', letterSpacing: '-0.02em' }}>
+            Radar de Processos & Micro-SaaS
           </Typography>
         </Box>
 
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          {/* Scrape button */}
           <Button
             variant="outlined"
             size="small"
@@ -156,11 +197,10 @@ export const RadarView: React.FC = () => {
               }}
             />
             <Typography variant="body2" sx={{ fontSize: '13px', color: '#9ca3af' }}>
-              Consum d'avui: <strong style={{ color: '#fff' }}>{systemStatus?.signals_today ?? offers.length} / {systemStatus?.daily_limit ?? 50}</strong> senyals
+              Consum d'avui: <strong style={{ color: '#fff' }}>{systemStatus?.signals_today ?? 0} / {systemStatus?.daily_limit ?? 50}</strong>
             </Typography>
           </Box>
 
-          {/* Logout */}
           <IconButton onClick={handleLogout} size="small" sx={{ color: '#9ca3af', '&:hover': { color: '#ef4444' } }}>
             <LogOut size={18} />
           </IconButton>
@@ -228,7 +268,6 @@ export const RadarView: React.FC = () => {
               }}
             />
 
-            {/* Fun Fact / Joke Card */}
             {(progressState.fun_fact || progressState.joke) && (
               <Box
                 sx={{
@@ -250,54 +289,138 @@ export const RadarView: React.FC = () => {
           </Box>
         )}
 
-        {/* Section Title & Status Filters */}
+        {/* View Switcher Tabs */}
+        <Box sx={{ mb: 3, borderBottom: '1px solid #374151' }}>
+          <Tabs
+            value={activeView}
+            onChange={(_, val) => setActiveView(val)}
+            sx={{
+              '& .MuiTab-root': {
+                color: '#9ca3af',
+                textTransform: 'none',
+                fontWeight: 700,
+                fontSize: '14px',
+                py: 1.5,
+                '&.Mui-selected': { color: '#38bdf8' },
+              },
+            }}
+          >
+            <Tab
+              value="clusters"
+              icon={<Layers size={18} />}
+              iconPosition="start"
+              label={`🎯 Clústers de Dolor (${clusters.length})`}
+            />
+            <Tab
+              value="opportunities"
+              icon={<Award size={18} />}
+              iconPosition="start"
+              label={`💡 Oportunitats Micro-SaaS (${opportunities.length})`}
+            />
+            <Tab
+              value="offers"
+              icon={<FileText size={18} />}
+              iconPosition="start"
+              label={`📋 Senyals d'Ofertes (${offers.length})`}
+            />
+          </Tabs>
+        </Box>
+
+        {/* Section Header with Filters */}
         <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, justifyContent: 'space-between', alignItems: { xs: 'flex-start', md: 'center' }, gap: 2, mb: 2.5 }}>
           <Box>
-            <Typography variant="h6" sx={{ fontWeight: 700, letterSpacing: '-0.01em', color: '#f9fafb' }}>
-              El Radar (Prioritzat per Viabilitat PLG)
+            <Typography variant="h6" sx={{ fontWeight: 800, color: '#f9fafb' }}>
+              {activeView === 'clusters' && 'Clústers de Dolor Operatiu'}
+              {activeView === 'opportunities' && 'Oportunitats Micro-SaaS Auditades (12 Factors)'}
+              {activeView === 'offers' && 'Senyals Bruts d\'Ofertes de Feina'}
             </Typography>
             <Typography variant="body2" sx={{ color: '#9ca3af', fontSize: '13px' }}>
-              Gestiona el pipeline d'oportunitats segons el seu estat de prospecció.
+              {activeView === 'clusters' && 'Patrons de dolor repetits en múltiples empreses i fonts independents.'}
+              {activeView === 'opportunities' && 'Hipòtesis de producte d\'un sol workflow validades sobre clústers consolidats.'}
+              {activeView === 'offers' && 'Històric de publicacions i ofertes rastrejades dels diferents portals.'}
             </Typography>
           </Box>
 
-          {/* Status Filter Bar */}
+          {/* Filter Bar */}
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.8, alignItems: 'center' }}>
             <Filter size={15} color="#9ca3af" style={{ marginRight: 4 }} />
-            {filterTabs.map((tab) => {
-              const isActive = statusFilter === tab.value;
-              return (
-                <Chip
-                  key={tab.value}
-                  label={tab.label}
-                  size="small"
-                  clickable
-                  onClick={() => setStatusFilter(tab.value)}
-                  sx={{
-                    fontWeight: 700,
-                    fontSize: '12px',
-                    px: 0.5,
-                    bgcolor: isActive ? tab.color : '#1f2937',
-                    color: isActive ? '#090d16' : '#9ca3af',
-                    border: `1px solid ${isActive ? tab.color : '#374151'}`,
-                    '&:hover': {
-                      bgcolor: isActive ? tab.color : 'rgba(255,255,255,0.06)',
-                      borderColor: tab.color,
-                    },
-                  }}
-                />
-              );
-            })}
+            {activeView === 'clusters' &&
+              clusterTabs.map((tab) => {
+                const isActive = clusterFilter === tab.value;
+                return (
+                  <Chip
+                    key={tab.value}
+                    label={tab.label}
+                    size="small"
+                    clickable
+                    onClick={() => setClusterFilter(tab.value)}
+                    sx={{
+                      fontWeight: 700,
+                      fontSize: '12px',
+                      bgcolor: isActive ? tab.color : '#1f2937',
+                      color: isActive ? '#090d16' : '#9ca3af',
+                      border: `1px solid ${isActive ? tab.color : '#374151'}`,
+                    }}
+                  />
+                );
+              })}
+
+            {activeView === 'opportunities' &&
+              opportunityTabs.map((tab) => {
+                const isActive = opportunityFilter === tab.value;
+                return (
+                  <Chip
+                    key={tab.value}
+                    label={tab.label}
+                    size="small"
+                    clickable
+                    onClick={() => setOpportunityFilter(tab.value)}
+                    sx={{
+                      fontWeight: 700,
+                      fontSize: '12px',
+                      bgcolor: isActive ? tab.color : '#1f2937',
+                      color: isActive ? '#090d16' : '#9ca3af',
+                      border: `1px solid ${isActive ? tab.color : '#374151'}`,
+                    }}
+                  />
+                );
+              })}
+
+            {activeView === 'offers' &&
+              offerTabs.map((tab) => {
+                const isActive = statusFilter === tab.value;
+                return (
+                  <Chip
+                    key={tab.value}
+                    label={tab.label}
+                    size="small"
+                    clickable
+                    onClick={() => setStatusFilter(tab.value)}
+                    sx={{
+                      fontWeight: 700,
+                      fontSize: '12px',
+                      bgcolor: isActive ? tab.color : '#1f2937',
+                      color: isActive ? '#090d16' : '#9ca3af',
+                      border: `1px solid ${isActive ? tab.color : '#374151'}`,
+                    }}
+                  />
+                );
+              })}
           </Box>
         </Box>
 
-        <RadarTable onSelectOffer={handleSelectOffer} />
+        {/* Content Table */}
+        {activeView === 'clusters' && <ClusterTable onSelectCluster={handleSelectCluster} />}
+        {activeView === 'opportunities' && <OpportunityTable onSelectOpportunity={handleSelectOpportunity} />}
+        {activeView === 'offers' && <RadarTable onSelectOffer={handleSelectOffer} />}
       </Box>
 
       {/* Drawer */}
       <LateralDrawer
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
+        cluster={selectedCluster}
+        opportunity={selectedOpportunity}
         offer={selectedOffer}
       />
 

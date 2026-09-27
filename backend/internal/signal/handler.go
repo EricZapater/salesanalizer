@@ -29,6 +29,12 @@ func (h *Handler) RegisterRoutes(rg *gin.RouterGroup) {
 	rg.PUT("/offers/:id/status", h.UpdateStatus)
 	rg.DELETE("/offers/:id", h.DiscardSignal)
 	rg.POST("/offers/analyze", h.AnalyzeURL)
+	rg.GET("/evidences", h.ListEvidences)
+	rg.GET("/clusters", h.ListPainClusters)
+	rg.GET("/clusters/:id", h.GetPainClusterDetails)
+	rg.POST("/clusters/:id/synthesize", h.SynthesizeOpportunity)
+	rg.GET("/opportunities", h.ListOpportunities)
+	rg.GET("/opportunities/:id", h.GetOpportunityByID)
 	rg.POST("/scrapers/run", h.RunScrapers)
 	rg.GET("/scrapers/stream", h.StreamScrapers)
 	rg.GET("/system/status", h.GetSystemStatus)
@@ -37,6 +43,96 @@ func (h *Handler) RegisterRoutes(rg *gin.RouterGroup) {
 	rg.GET("/settings", h.GetScraperSettings)
 	rg.PUT("/settings", h.UpdateScraperSettings)
 }
+
+func (h *Handler) ListEvidences(c *gin.Context) {
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
+	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+
+	items, total, err := h.service.ListEvidences(c.Request.Context(), limit, offset)
+	if err != nil {
+		shared.RespondError(c, http.StatusInternalServerError, "database_error", err.Error())
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"total": total,
+		"items": items,
+	})
+}
+
+func (h *Handler) ListPainClusters(c *gin.Context) {
+	status := c.DefaultQuery("status", "all")
+	minEvidence, _ := strconv.Atoi(c.DefaultQuery("min_evidence", "0"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
+	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+
+	resp, err := h.service.ListPainClusters(c.Request.Context(), status, minEvidence, limit, offset)
+	if err != nil {
+		shared.RespondError(c, http.StatusInternalServerError, "database_error", err.Error())
+		return
+	}
+
+	c.JSON(http.StatusOK, resp)
+}
+
+func (h *Handler) GetPainClusterDetails(c *gin.Context) {
+	id := c.Param("id")
+	details, err := h.service.GetPainClusterDetails(c.Request.Context(), id)
+	if err != nil {
+		shared.RespondError(c, http.StatusInternalServerError, "database_error", err.Error())
+		return
+	}
+	if details == nil {
+		shared.RespondError(c, http.StatusNotFound, "not_found", "Clúster no trobat")
+		return
+	}
+
+	c.JSON(http.StatusOK, details)
+}
+
+func (h *Handler) SynthesizeOpportunity(c *gin.Context) {
+	clusterID := c.Param("id")
+	opp, err := h.service.SynthesizeOpportunityForCluster(c.Request.Context(), clusterID)
+	if err != nil {
+		shared.RespondError(c, http.StatusInternalServerError, "synthesis_error", err.Error())
+		return
+	}
+
+	c.JSON(http.StatusOK, opp)
+}
+
+func (h *Handler) ListOpportunities(c *gin.Context) {
+	minScore, _ := strconv.ParseFloat(c.DefaultQuery("min_score", "0"), 64)
+	tier := c.DefaultQuery("tier", "all")
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
+	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+
+	resp, err := h.service.ListOpportunities(c.Request.Context(), minScore, tier, limit, offset)
+	if err != nil {
+		shared.RespondError(c, http.StatusInternalServerError, "database_error", err.Error())
+		return
+	}
+
+	c.JSON(http.StatusOK, resp)
+}
+
+func (h *Handler) GetOpportunityByID(c *gin.Context) {
+	id := c.Param("id")
+	opp, err := h.service.GetOpportunityByID(c.Request.Context(), id)
+	if err != nil {
+		shared.RespondError(c, http.StatusInternalServerError, "database_error", err.Error())
+		return
+	}
+	if opp == nil {
+		shared.RespondError(c, http.StatusNotFound, "not_found", "Oportunitat no trobada")
+		return
+	}
+
+	c.JSON(http.StatusOK, opp)
+}
+
+
+
 
 
 func (h *Handler) ListSignals(c *gin.Context) {

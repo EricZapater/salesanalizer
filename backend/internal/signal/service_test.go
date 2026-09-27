@@ -58,6 +58,84 @@ func TestSignalModel_JSONSerialization(t *testing.T) {
 	}
 }
 
+func TestEvidenceModel_JSONSerialization(t *testing.T) {
+	company := "Transports i Logística Girona SL"
+	sector := "Logística"
+	proc := "Control de rutes i albarans"
+	task := "Revisió d'albarans físics i actualització de fulls Excel"
+	quote := "gestió diària d'albarans en paper i fulls Excel"
+
+	ev := signal.Evidence{
+		ID:                  "770e8400-e29b-41d4-a716-446655440000",
+		RawContent:          "Empresa de transports cerca administratiu per a la gestió diària d'albarans en paper i fulls Excel.",
+		NormalizedURL:       "https://feinaactiva.gencat.cat/oferta/1234",
+		ContentHash:         "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+		Source:              "feina_activa",
+		AuthorOrCompany:     &company,
+		ExtractedProcess:    &proc,
+		TaskDescription:     &task,
+		Frequency:           "diària",
+		ManualityScore:      3,
+		ToolsMentioned:      []string{"Excel", "Albarans en paper"},
+		Sector:              &sector,
+		EvidenceConfidence:  "alta",
+		SourceEvidenceQuote: &quote,
+		CreatedAt:           time.Now(),
+	}
+
+	bytes, err := json.Marshal(ev)
+	if err != nil {
+		t.Fatalf("error serialitzant Evidence a JSON: %v", err)
+	}
+
+	var parsed signal.Evidence
+	if err := json.Unmarshal(bytes, &parsed); err != nil {
+		t.Fatalf("error deserialitzant Evidence de JSON: %v", err)
+	}
+
+	if parsed.ManualityScore != 3 {
+		t.Errorf("esperava manuality_score 3, obtingut %d", parsed.ManualityScore)
+	}
+	if parsed.EvidenceConfidence != "alta" {
+		t.Errorf("esperava confidence 'alta', obtingut '%s'", parsed.EvidenceConfidence)
+	}
+	if len(parsed.ToolsMentioned) != 2 {
+		t.Errorf("esperava 2 eines, obtingut %d", len(parsed.ToolsMentioned))
+	}
+}
+
+func TestFallbackProcessExtraction(t *testing.T) {
+	svc := signal.NewService(nil)
+
+	content := "Cercador de dades: tasques administratives de revisió de quadrants de torns amb fulls Excel i avisos per WhatsApp als xofers."
+	title := "Administratiu de Trànsit"
+
+	res := svc.FallbackProcessExtraction(content, "oferta_feina", title)
+	if res == nil {
+		t.Fatal("esperava resultat d'extracció no nul")
+	}
+
+	if res.ManualityScore < 2 {
+		t.Errorf("esperava manuality score >= 2 per a contingut amb Excel i WhatsApp, obtingut %d", res.ManualityScore)
+	}
+
+	foundExcel := false
+	for _, tool := range res.ToolsMentioned {
+		if tool == "Excel" {
+			foundExcel = true
+			break
+		}
+	}
+	if !foundExcel {
+		t.Errorf("esperava trobar Excel a ToolsMentioned, obtingut %v", res.ToolsMentioned)
+	}
+
+	// Comprovar que la cita generada és vàlida en el contingut
+	if !signal.VerifyEvidenceQuote(content, res.SourceEvidenceQuote) {
+		t.Errorf("la cita de fallback no és present al contingut original: %q", res.SourceEvidenceQuote)
+	}
+}
+
 func TestService_GroqAnalysis(t *testing.T) {
 	groqKey := os.Getenv("GROQ_API_KEY")
 	if groqKey == "" {

@@ -98,4 +98,36 @@ export const prospectorApi = {
     const res = await apiClient.get('/system/status');
     return res.data;
   },
+
+  // Nous endpoints V2: Clústers i Oportunitats
+  listClusters: async (params?: { status?: string; min_evidence?: number; limit?: number; offset?: number }): Promise<{ total: number; items: import('./types').PainCluster[] }> => {
+    const res = await apiClient.get('/clusters', { params });
+    return res.data;
+  },
+
+  getClusterDetails: async (id: string): Promise<import('./types').PainClusterWithDetails> => {
+    const res = await apiClient.get(`/clusters/${id}`);
+    return res.data;
+  },
+
+  synthesizeOpportunity: async (clusterId: string): Promise<import('./types').Opportunity> => {
+    const res = await apiClient.post(`/clusters/${clusterId}/synthesize`);
+    return res.data;
+  },
+
+  listOpportunities: async (params?: { min_score?: number; tier?: string; limit?: number; offset?: number }): Promise<{ total: number; items: import('./types').Opportunity[] }> => {
+    const res = await apiClient.get('/opportunities', { params });
+    return res.data;
+  },
+
+  getOpportunityByID: async (id: string): Promise<import('./types').Opportunity> => {
+    const res = await apiClient.get(`/opportunities/${id}`);
+    return res.data;
+  },
+
+  listEvidences: async (params?: { limit?: number; offset?: number }): Promise<{ total: number; items: import('./types').Evidence[] }> => {
+    const res = await apiClient.get('/evidences', { params });
+    return res.data;
+  },
 };
+
